@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useEffect } from "react";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Mic, MicOff, Volume, VolumeX } from "lucide-react";
@@ -50,6 +50,14 @@ const VoiceAssistant: React.FC = () => {
     const value = parseInt(e.target.value);
     setSegmentInterval(value);
   };
+
+  // Agregamos logs para depuración
+  useEffect(() => {
+    console.log("Current state:", state);
+    console.log("Active segments:", activeSegments);
+    console.log("Current transcription:", currentTranscription);
+    console.log("Real-time mode:", isRealTimeMode);
+  }, [state, activeSegments, currentTranscription, isRealTimeMode]);
 
   return (
     <Card className="w-full max-w-3xl mx-auto shadow-lg">
