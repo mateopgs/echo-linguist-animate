@@ -1,9 +1,6 @@
 
-import { AzureConfig } from "../types/voice-assistant";
-
-// Note: This is a placeholder implementation. The actual implementation would use the Azure SDK.
-// To fully implement Azure Speech Service, you would need to install the Microsoft Cognitive Services Speech SDK
-// and use it here.
+import * as sdk from "microsoft-cognitiveservices-speech-sdk";
+import { AzureConfig, SupportedLanguages } from "../types/voice-assistant";
 
 const defaultLanguages = [
   { code: "en-US", name: "English", nativeName: "English" },
@@ -20,17 +17,25 @@ const defaultLanguages = [
 
 class AzureSpeechService {
   private config: AzureConfig | null = null;
-  private recognizer: any = null;
-  private synthesizer: any = null;
-  private translator: any = null;
+  private recognizer: sdk.SpeechRecognizer | null = null;
+  private synthesizer: sdk.SpeechSynthesizer | null = null;
+  private audioContext: AudioContext | null = null;
+  private sourceNode: AudioBufferSourceNode | null = null;
 
   public setConfig(config: AzureConfig) {
     this.config = config;
     console.log("Azure Speech Service config set:", config);
+    
+    // Create audio context for playback
+    try {
+      this.audioContext = new AudioContext();
+    } catch (error) {
+      console.error("Failed to create AudioContext:", error);
+    }
   }
 
   public getSupportedLanguages() {
-    // In a real implementation, this would fetch the list of supported languages from Azure
+    // Return default languages until we can fetch from Azure
     return Promise.resolve(defaultLanguages);
   }
 
@@ -45,52 +50,140 @@ class AzureSpeechService {
     }
 
     console.log(`Starting recognition from ${fromLanguage} to ${toLanguage}`);
+    
+    try {
+      // Set up speech config
+      const speechConfig = sdk.SpeechConfig.fromSubscription(
+        this.config.key, 
+        this.config.region
+      );
+      speechConfig.speechRecognitionLanguage = fromLanguage;
+      
+      // Create translation config with target language
+      const translationConfig = sdk.SpeechTranslationConfig.fromSubscription(
+        this.config.key,
+        this.config.region
+      );
+      translationConfig.speechRecognitionLanguage = fromLanguage;
+      translationConfig.addTargetLanguage(toLanguage.split('-')[0]); // "es-ES" -> "es"
 
-    // Mock implementation for now
-    setTimeout(() => {
-      onInterimResult("Recognizing...");
-    }, 500);
+      // Setup audio config for microphone
+      const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
+      
+      // Create translator
+      const translator = new sdk.TranslationRecognizer(translationConfig, audioConfig);
 
-    return {
-      stop: () => {
-        console.log("Stopping recognition");
-        // Return mock values
-        const mockOriginal = "This is a mock original text";
-        const mockTranslated = "Esta es una traducción simulada";
-        onFinalResult(mockOriginal, mockTranslated);
-      }
-    };
+      // Handle recognition results
+      translator.recognized = (_, event) => {
+        if (event.result.reason === sdk.ResultReason.RecognizedSpeech) {
+          const originalText = event.result.text;
+          const translatedText = event.result.translations.get(toLanguage.split('-')[0]) || "";
+          onFinalResult(originalText, translatedText);
+        }
+      };
+
+      translator.recognizing = (_, event) => {
+        if (event.result.reason === sdk.ResultReason.RecognizingSpeech) {
+          onInterimResult(event.result.text);
+        }
+      };
+
+      // Start continuous recognition
+      await translator.startContinuousRecognitionAsync();
+      
+      return {
+        stop: async () => {
+          await translator.stopContinuousRecognitionAsync();
+          translator.close();
+        }
+      };
+    } catch (error) {
+      console.error("Error starting recognition:", error);
+      throw error;
+    }
   }
 
-  public async synthesizeSpeech(text: string, language: string): Promise<AudioBuffer> {
+  public async synthesizeSpeech(text: string, language: string): Promise<ArrayBuffer> {
     if (!this.config) {
       throw new Error("Azure Speech Service not configured");
     }
 
     console.log(`Synthesizing speech in ${language}: ${text}`);
     
-    // Mock implementation
-    // In a real implementation, this would use the Azure SDK to synthesize speech
-    return Promise.resolve(null as any);
+    try {
+      const speechConfig = sdk.SpeechConfig.fromSubscription(
+        this.config.key, 
+        this.config.region
+      );
+      speechConfig.speechSynthesisLanguage = language;
+      
+      const synthesizer = new sdk.SpeechSynthesizer(speechConfig);
+      
+      return new Promise((resolve, reject) => {
+        synthesizer.speakTextAsync(
+          text,
+          (result) => {
+            if (result.reason === sdk.ResultReason.SynthesizingAudioCompleted) {
+              resolve(result.audioData);
+            } else {
+              reject(new Error(`Speech synthesis failed: ${result.reason}`));
+            }
+            synthesizer.close();
+          },
+          (error) => {
+            reject(error);
+            synthesizer.close();
+          }
+        );
+      });
+    } catch (error) {
+      console.error("Error synthesizing speech:", error);
+      throw error;
+    }
   }
 
-  public async playAudio(audioBuffer: AudioBuffer): Promise<void> {
-    console.log("Playing audio...");
-    // Mock implementation
-    return new Promise((resolve) => {
-      setTimeout(resolve, 2000);
-    });
+  public async playAudio(audioData: ArrayBuffer): Promise<void> {
+    if (!this.audioContext) {
+      this.audioContext = new AudioContext();
+    }
+
+    try {
+      console.log("Playing audio...");
+      const audioBuffer = await this.audioContext.decodeAudioData(audioData);
+      
+      this.sourceNode = this.audioContext.createBufferSource();
+      this.sourceNode.buffer = audioBuffer;
+      this.sourceNode.connect(this.audioContext.destination);
+      
+      return new Promise((resolve) => {
+        this.sourceNode!.onended = () => {
+          resolve();
+        };
+        this.sourceNode!.start(0);
+      });
+    } catch (error) {
+      console.error("Error playing audio:", error);
+      throw error;
+    }
   }
 
   public dispose() {
     if (this.recognizer) {
-      console.log("Disposing recognizer");
+      this.recognizer.close();
+      this.recognizer = null;
     }
     if (this.synthesizer) {
-      console.log("Disposing synthesizer");
+      this.synthesizer.close();
+      this.synthesizer = null;
     }
-    if (this.translator) {
-      console.log("Disposing translator");
+    if (this.sourceNode) {
+      this.sourceNode.stop();
+      this.sourceNode.disconnect();
+      this.sourceNode = null;
+    }
+    if (this.audioContext) {
+      this.audioContext.close();
+      this.audioContext = null;
     }
   }
 }

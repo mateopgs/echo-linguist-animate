@@ -7,7 +7,7 @@ type AudioVisualizerProps = {
 };
 
 const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ state }) => {
-  const [barCount, setBarCount] = useState(5);
+  const [barCount, setBarCount] = useState(10);
   
   // Adjust bar count based on screen size
   useEffect(() => {
@@ -27,22 +27,36 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ state }) => {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  const isActive = state === AssistantState.LISTENING || state === AssistantState.SPEAKING;
+
   return (
-    <div 
-      className={`audio-visualizer ${
-        state === AssistantState.LISTENING ? "listening" : 
-        state === AssistantState.SPEAKING ? "speaking" : ""
-      }`}
-    >
-      {Array.from({ length: barCount }).map((_, index) => (
-        <div 
-          key={index} 
-          className="bar"
-          style={{ 
-            animationDelay: `${(index % 5) * 0.1}s`,
-          }}
-        />
-      ))}
+    <div className="py-4 flex justify-center">
+      <div 
+        className={`flex items-end justify-center h-20 space-x-1 w-full max-w-md ${
+          state === AssistantState.ERROR ? "opacity-50" : ""
+        }`}
+      >
+        {Array.from({ length: barCount }).map((_, index) => (
+          <div 
+            key={index} 
+            className={`w-2 md:w-3 rounded-md transition-all duration-50 ${
+              state === AssistantState.LISTENING 
+                ? "bg-red-500" 
+                : state === AssistantState.SPEAKING 
+                  ? "bg-green-500" 
+                  : "bg-gray-300"
+            }`}
+            style={{ 
+              height: isActive 
+                ? `${Math.max(15, Math.random() * 100)}%` 
+                : "15%",
+              animationDuration: `${0.5 + Math.random() * 0.5}s`,
+              animationDelay: `${index * 0.05}s`,
+              animation: isActive ? 'pulse 0.5s infinite alternate' : 'none',
+            }}
+          />
+        ))}
+      </div>
     </div>
   );
 };

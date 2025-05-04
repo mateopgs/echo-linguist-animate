@@ -1,7 +1,8 @@
 
-import React, { createContext, useState, useContext, useEffect } from "react";
+import React, { createContext, useState, useContext, useEffect, useRef } from "react";
 import { azureSpeechService } from "../services/azureSpeechService";
 import { SupportedLanguages, TranscriptionResult, AssistantState, AzureConfig } from "../types/voice-assistant";
+import { useToast } from "../hooks/use-toast";
 
 type VoiceAssistantContextType = {
   apiKey: string;
@@ -36,19 +37,21 @@ export const useVoiceAssistant = () => {
 };
 
 export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [apiKey, setApiKey] = useState("");
-  const [region, setRegion] = useState("eastus");
+  // Pre-configured API key from logs
+  const [apiKey, setApiKey] = useState("3T3EuIFcgBiqLGtRbSd9PywVHAKw2RsbnROSIdWCmhPdvkIPnfD0JQQJ99BDACHYHv6XJ3w3AAAAACOGONVI");
+  const [region, setRegion] = useState("eastus2");
   const [state, setState] = useState<AssistantState>(AssistantState.IDLE);
-  const [sourceLanguage, setSourceLanguage] = useState("en-US");
-  const [targetLanguage, setTargetLanguage] = useState("es-ES");
+  const [sourceLanguage, setSourceLanguage] = useState("es-ES"); // Cambiado a español por defecto
+  const [targetLanguage, setTargetLanguage] = useState("en-US"); // Cambiado a inglés como destino
   const [supportedLanguages, setSupportedLanguages] = useState<SupportedLanguages[]>([]);
   const [transcriptionHistory, setTranscriptionHistory] = useState<TranscriptionResult[]>([]);
   const [currentTranscription, setCurrentTranscription] = useState({
     originalText: "",
     translatedText: "",
   });
-  const [recognitionSession, setRecognitionSession] = useState<any>(null);
+  const recognitionSessionRef = useRef<any>(null);
   const [isConfigured, setIsConfigured] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (apiKey && region) {
@@ -65,20 +68,35 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
           })
           .catch((error) => {
             console.error("Failed to load supported languages:", error);
+            toast({
+              title: "Error",
+              description: "No se pudieron cargar los idiomas soportados",
+              variant: "destructive",
+            });
           });
       } catch (error) {
         console.error("Failed to configure Azure Speech Service:", error);
         setIsConfigured(false);
+        toast({
+          title: "Error de configuración",
+          description: "No se pudo configurar el servicio de Azure Speech",
+          variant: "destructive",
+        });
       }
     } else {
       setIsConfigured(false);
     }
-  }, [apiKey, region]);
+  }, [apiKey, region, toast]);
 
   const startListening = async () => {
     if (!isConfigured) {
       console.error("Azure Speech Service not configured");
       setState(AssistantState.ERROR);
+      toast({
+        title: "Error",
+        description: "El servicio de Azure Speech no está configurado",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -123,24 +141,35 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
             await azureSpeechService.playAudio(audioBuffer);
           } catch (error) {
             console.error("Error synthesizing speech:", error);
+            toast({
+              title: "Error",
+              description: "Error al sintetizar la voz",
+              variant: "destructive",
+            });
           } finally {
             setState(AssistantState.IDLE);
           }
         }
       );
 
-      setRecognitionSession(session);
+      recognitionSessionRef.current = session;
     } catch (error) {
       console.error("Error starting listening:", error);
       setState(AssistantState.ERROR);
+      toast({
+        title: "Error",
+        description: "Error al iniciar el reconocimiento de voz",
+        variant: "destructive",
+      });
     }
   };
 
   const stopListening = () => {
-    if (recognitionSession) {
-      recognitionSession.stop();
-      setRecognitionSession(null);
+    if (recognitionSessionRef.current) {
+      recognitionSessionRef.current.stop();
+      recognitionSessionRef.current = null;
     }
+    setState(AssistantState.IDLE);
   };
 
   const clearTranscriptionHistory = () => {
