@@ -8,6 +8,9 @@ import { AssistantState } from "../types/voice-assistant";
 import AudioVisualizer from "./AudioVisualizer";
 import TranscriptionDisplay from "./TranscriptionDisplay";
 import LanguageSelector from "./LanguageSelector";
+import { Switch } from "./ui/switch";
+import { Label } from "./ui/label";
+import ActiveSegmentsList from "./ActiveSegmentsList";
 
 const VoiceAssistant: React.FC = () => {
   const {
@@ -16,10 +19,13 @@ const VoiceAssistant: React.FC = () => {
     targetLanguage,
     supportedLanguages,
     currentTranscription,
+    activeSegments,
     setSourceLanguage,
     setTargetLanguage,
     startListening,
     stopListening,
+    isRealTimeMode,
+    setRealTimeMode,
   } = useVoiceAssistant();
 
   const handleToggleListen = () => {
@@ -60,13 +66,25 @@ const VoiceAssistant: React.FC = () => {
             />
           </div>
         </div>
+        
+        <div className="flex items-center space-x-2 justify-center">
+          <Switch
+            id="real-time-mode"
+            checked={isRealTimeMode}
+            onCheckedChange={setRealTimeMode}
+          />
+          <Label htmlFor="real-time-mode" className="cursor-pointer">
+            Modo de traducción en tiempo real
+          </Label>
+        </div>
 
         <div className="py-4">
           <AudioVisualizer state={state} />
           
           <div className="text-center text-sm text-muted-foreground mt-2">
             {state === AssistantState.IDLE && "Ready to translate"}
-            {state === AssistantState.LISTENING && "Listening..."}
+            {state === AssistantState.LISTENING && 
+              (isRealTimeMode ? "Escuchando y traduciendo en tiempo real..." : "Listening...")}
             {state === AssistantState.SPEAKING && "Speaking..."}
             {state === AssistantState.PROCESSING && "Processing..."}
             {state === AssistantState.ERROR && "Error occurred"}
@@ -79,6 +97,14 @@ const VoiceAssistant: React.FC = () => {
           originalLanguage={getLanguageName(sourceLanguage)}
           targetLanguage={getLanguageName(targetLanguage)}
         />
+        
+        {isRealTimeMode && activeSegments.length > 0 && (
+          <ActiveSegmentsList 
+            segments={activeSegments}
+            sourceLanguageName={getLanguageName(sourceLanguage)}
+            targetLanguageName={getLanguageName(targetLanguage)}
+          />
+        )}
 
         <div className="flex justify-center pt-2">
           <Button

@@ -1,6 +1,7 @@
 
 import React, { useEffect, useState } from "react";
 import { AssistantState } from "../types/voice-assistant";
+import { useVoiceAssistant } from "../contexts/VoiceAssistantContext";
 
 type AudioVisualizerProps = {
   state: AssistantState;
@@ -8,6 +9,7 @@ type AudioVisualizerProps = {
 
 const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ state }) => {
   const [barCount, setBarCount] = useState(10);
+  const { isRealTimeMode } = useVoiceAssistant();
   
   // Adjust bar count based on screen size
   useEffect(() => {
@@ -28,6 +30,7 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ state }) => {
   }, []);
 
   const isActive = state === AssistantState.LISTENING || state === AssistantState.SPEAKING;
+  const isRealTimeActive = isRealTimeMode && state === AssistantState.LISTENING;
 
   return (
     <div className="py-4 flex justify-center">
@@ -40,19 +43,24 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ state }) => {
           <div 
             key={index} 
             className={`w-2 md:w-3 rounded-md transition-all duration-50 ${
-              state === AssistantState.LISTENING 
-                ? "bg-red-500" 
-                : state === AssistantState.SPEAKING 
-                  ? "bg-green-500" 
-                  : "bg-gray-300"
+              isRealTimeActive
+                ? "bg-gradient-to-t from-red-500 to-blue-500"
+                : state === AssistantState.LISTENING 
+                  ? "bg-red-500" 
+                  : state === AssistantState.SPEAKING 
+                    ? "bg-green-500" 
+                    : "bg-gray-300"
             }`}
             style={{ 
               height: isActive 
                 ? `${Math.max(15, Math.random() * 100)}%` 
                 : "15%",
-              animationDuration: `${0.5 + Math.random() * 0.5}s`,
+              animationDuration: isRealTimeActive
+                ? `${0.3 + Math.random() * 0.3}s`
+                : `${0.5 + Math.random() * 0.5}s`,
               animationDelay: `${index * 0.05}s`,
               animation: isActive ? 'pulse 0.5s infinite alternate' : 'none',
+              transition: isRealTimeActive ? 'height 150ms ease' : 'height 300ms ease',
             }}
           />
         ))}
