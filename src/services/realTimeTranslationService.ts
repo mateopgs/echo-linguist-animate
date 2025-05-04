@@ -30,6 +30,7 @@ export interface TranslationEvents {
   segmentError: { segment: AudioSegment; error: Error };
   sessionStarted: void;
   sessionEnded: void;
+  simultaneousCapture: boolean;
 }
 
 export class RealTimeTranslationService extends EventEmitter<TranslationEvents> {
@@ -44,6 +45,9 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
   private processing: boolean = false;
   private sourceLanguage: string = "es-ES";
   private targetLanguage: string = "en-US";
+  private segmentInterval: number = 3000; // 3 seconds per segment by default
+  private captureTimer: NodeJS.Timeout | null = null;
+  private isCapturingWhileSpeaking: boolean = false;
 
   constructor() {
     super();
@@ -66,6 +70,15 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
 
   public setTargetLanguage(language: string) {
     this.targetLanguage = language;
+  }
+  
+  public setSegmentDuration(durationMs: number) {
+    this.segmentInterval = durationMs;
+    console.log(`Segment duration set to ${durationMs}ms`);
+  }
+  
+  public get isContinuousCapturing(): boolean {
+    return this.isCapturingWhileSpeaking;
   }
 
   public async startSession(): Promise<void> {
@@ -95,15 +108,15 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
       // Configure for continuous recognition with segmentation
       translationConfig.setProperty(
         sdk.PropertyId.SpeechServiceConnection_InitialSilenceTimeoutMs, 
-        "2000"
+        "5000"
       );
       translationConfig.setProperty(
         sdk.PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs, 
-        "500"
+        "1000"
       );
       translationConfig.setProperty(
         sdk.PropertyId.Speech_SegmentationSilenceTimeoutMs,
-        "500"
+        this.segmentInterval.toString()
       );
       
       // Setup audio config for microphone
@@ -160,15 +173,22 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
       this.translationRecognizer.sessionStarted = (_, event) => {
         console.log("Translation session started");
         this.emit("sessionStarted", undefined);
+        
+        // Start the timer for segmenting speech while speaking
+        this.startPeriodicSegmentation();
       };
 
       this.translationRecognizer.sessionStopped = (_, event) => {
         console.log("Translation session stopped");
+        this.stopPeriodicSegmentation();
         this.emit("sessionEnded", undefined);
       };
 
       // Start continuous recognition
       await this.translationRecognizer.startContinuousRecognitionAsync();
+      
+      // Enable capturing while speaking by default
+      this.enableCapturingWhileSpeaking(true);
       
       console.log("Real-time translation session started");
     } catch (error) {
@@ -180,6 +200,8 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
 
   public async stopSession(): Promise<void> {
     if (!this.processing) return;
+    
+    this.stopPeriodicSegmentation();
     
     if (this.translationRecognizer) {
       try {
@@ -194,6 +216,44 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
     this.processing = false;
     this.emit("sessionEnded", undefined);
     console.log("Real-time translation session ended");
+  }
+
+  // Enable or disable capturing while speaking
+  public enableCapturingWhileSpeaking(enabled: boolean): void {
+    this.isCapturingWhileSpeaking = enabled;
+    this.emit("simultaneousCapture", enabled);
+    console.log(`Capturing while speaking: ${enabled ? "enabled" : "disabled"}`);
+    
+    if (enabled) {
+      this.startPeriodicSegmentation();
+    } else {
+      this.stopPeriodicSegmentation();
+    }
+  }
+  
+  // Start a timer to periodically segment speech
+  private startPeriodicSegmentation(): void {
+    if (this.captureTimer) {
+      clearInterval(this.captureTimer);
+    }
+    
+    this.captureTimer = setInterval(() => {
+      if (this.currentlyPlaying && this.isCapturingWhileSpeaking && this.translationRecognizer) {
+        console.log("Forcing segment creation while speaking");
+        // Force the recognizer to process the current audio buffer
+        this.translationRecognizer.recognized.once((_, event) => {
+          console.log("Forced segment recognition:", event.result.text);
+        });
+      }
+    }, this.segmentInterval);
+  }
+  
+  // Stop the periodic segmentation timer
+  private stopPeriodicSegmentation(): void {
+    if (this.captureTimer) {
+      clearInterval(this.captureTimer);
+      this.captureTimer = null;
+    }
   }
 
   // Process the segment through the TTS pipeline
@@ -308,6 +368,8 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
   }
 
   public dispose() {
+    this.stopPeriodicSegmentation();
+    
     if (this.recognizer) {
       this.recognizer.close();
       this.recognizer = null;

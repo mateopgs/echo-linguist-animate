@@ -28,6 +28,10 @@ type VoiceAssistantContextType = {
   isConfigured: boolean;
   isRealTimeMode: boolean;
   setRealTimeMode: (enabled: boolean) => void;
+  isCapturingWhileSpeaking: boolean;
+  setCapturingWhileSpeaking: (enabled: boolean) => void;
+  segmentInterval: number;
+  setSegmentInterval: (ms: number) => void;
 };
 
 const VoiceAssistantContext = createContext<VoiceAssistantContextType | null>(null);
@@ -57,7 +61,14 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
   const recognitionSessionRef = useRef<any>(null);
   const [isConfigured, setIsConfigured] = useState(false);
   const [isRealTimeMode, setRealTimeMode] = useState(false);
+  const [isCapturingWhileSpeaking, setCapturingWhileSpeaking] = useState(true);
+  const [segmentInterval, setSegmentInterval] = useState(3000); // Default to 3 seconds
   const { toast } = useToast();
+
+  // Apply segment interval to the service when it changes
+  useEffect(() => {
+    realTimeTranslationService.setSegmentDuration(segmentInterval);
+  }, [segmentInterval]);
 
   // Clean up active segments periodically
   useEffect(() => {
@@ -160,6 +171,10 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
     const handleSessionEnded = () => {
       setState(AssistantState.IDLE);
     };
+    
+    const handleSimultaneousCapture = (enabled: boolean) => {
+      setCapturingWhileSpeaking(enabled);
+    };
 
     // Register event handlers
     realTimeTranslationService.on("segmentCreated", handleSegmentCreated);
@@ -167,6 +182,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
     realTimeTranslationService.on("segmentCompleted", handleSegmentCompleted);
     realTimeTranslationService.on("sessionStarted", handleSessionStarted);
     realTimeTranslationService.on("sessionEnded", handleSessionEnded);
+    realTimeTranslationService.on("simultaneousCapture", handleSimultaneousCapture);
 
     return () => {
       // Clean up event handlers
@@ -175,8 +191,16 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
       realTimeTranslationService.off("segmentCompleted", handleSegmentCompleted); 
       realTimeTranslationService.off("sessionStarted", handleSessionStarted);
       realTimeTranslationService.off("sessionEnded", handleSessionEnded);
+      realTimeTranslationService.off("simultaneousCapture", handleSimultaneousCapture);
     };
   }, [sourceLanguage, targetLanguage]);
+
+  // Effect to update the capturing while speaking setting
+  useEffect(() => {
+    if (isRealTimeMode) {
+      realTimeTranslationService.enableCapturingWhileSpeaking(isCapturingWhileSpeaking);
+    }
+  }, [isCapturingWhileSpeaking, isRealTimeMode]);
 
   // Original listening function for non-real-time mode
   const startRegularListening = async () => {
@@ -340,6 +364,10 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
         isConfigured,
         isRealTimeMode,
         setRealTimeMode,
+        isCapturingWhileSpeaking,
+        setCapturingWhileSpeaking,
+        segmentInterval,
+        setSegmentInterval,
       }}
     >
       {children}

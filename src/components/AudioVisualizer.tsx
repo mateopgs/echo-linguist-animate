@@ -9,7 +9,7 @@ type AudioVisualizerProps = {
 
 const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ state }) => {
   const [barCount, setBarCount] = useState(10);
-  const { isRealTimeMode } = useVoiceAssistant();
+  const { isRealTimeMode, isCapturingWhileSpeaking } = useVoiceAssistant();
   
   // Adjust bar count based on screen size
   useEffect(() => {
@@ -31,6 +31,7 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ state }) => {
 
   const isActive = state === AssistantState.LISTENING || state === AssistantState.SPEAKING;
   const isRealTimeActive = isRealTimeMode && state === AssistantState.LISTENING;
+  const isSimultaneousMode = isCapturingWhileSpeaking && isRealTimeMode;
 
   return (
     <div className="py-4 flex justify-center">
@@ -39,31 +40,41 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ state }) => {
           state === AssistantState.ERROR ? "opacity-50" : ""
         }`}
       >
-        {Array.from({ length: barCount }).map((_, index) => (
-          <div 
-            key={index} 
-            className={`w-2 md:w-3 rounded-md transition-all duration-50 ${
-              isRealTimeActive
-                ? "bg-gradient-to-t from-red-500 to-blue-500"
-                : state === AssistantState.LISTENING 
-                  ? "bg-red-500" 
-                  : state === AssistantState.SPEAKING 
-                    ? "bg-green-500" 
-                    : "bg-gray-300"
-            }`}
-            style={{ 
-              height: isActive 
-                ? `${Math.max(15, Math.random() * 100)}%` 
-                : "15%",
-              animationDuration: isRealTimeActive
-                ? `${0.3 + Math.random() * 0.3}s`
-                : `${0.5 + Math.random() * 0.5}s`,
-              animationDelay: `${index * 0.05}s`,
-              animation: isActive ? 'pulse 0.5s infinite alternate' : 'none',
-              transition: isRealTimeActive ? 'height 150ms ease' : 'height 300ms ease',
-            }}
-          />
-        ))}
+        {Array.from({ length: barCount }).map((_, index) => {
+          // Determine the bar color based on the current state
+          let barColor = "bg-gray-300";
+          
+          if (isSimultaneousMode) {
+            // Show gradient when capturing and speaking simultaneously
+            barColor = "bg-gradient-to-t from-red-500 to-green-500";
+          } else if (isRealTimeActive) {
+            barColor = "bg-gradient-to-t from-red-500 to-blue-500";
+          } else if (state === AssistantState.LISTENING) {
+            barColor = "bg-red-500";
+          } else if (state === AssistantState.SPEAKING) {
+            barColor = "bg-green-500";
+          }
+          
+          return (
+            <div 
+              key={index} 
+              className={`w-2 md:w-3 rounded-md transition-all duration-50 ${barColor}`}
+              style={{ 
+                height: isActive 
+                  ? `${Math.max(15, Math.random() * 100)}%` 
+                  : "15%",
+                animationDuration: isRealTimeActive || isSimultaneousMode
+                  ? `${0.3 + Math.random() * 0.3}s`
+                  : `${0.5 + Math.random() * 0.5}s`,
+                animationDelay: `${index * 0.05}s`,
+                animation: isActive ? 'pulse 0.5s infinite alternate' : 'none',
+                transition: isRealTimeActive || isSimultaneousMode 
+                  ? 'height 150ms ease' 
+                  : 'height 300ms ease',
+              }}
+            />
+          );
+        })}
       </div>
     </div>
   );

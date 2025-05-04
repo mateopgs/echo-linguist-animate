@@ -26,6 +26,10 @@ const VoiceAssistant: React.FC = () => {
     stopListening,
     isRealTimeMode,
     setRealTimeMode,
+    isCapturingWhileSpeaking,
+    setCapturingWhileSpeaking,
+    segmentInterval,
+    setSegmentInterval
   } = useVoiceAssistant();
 
   const handleToggleListen = () => {
@@ -40,6 +44,11 @@ const VoiceAssistant: React.FC = () => {
   const getLanguageName = (code: string) => {
     const language = supportedLanguages.find((lang) => lang.code === code);
     return language ? language.name : code;
+  };
+  
+  const handleSegmentIntervalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = parseInt(e.target.value);
+    setSegmentInterval(value);
   };
 
   return (
@@ -67,15 +76,49 @@ const VoiceAssistant: React.FC = () => {
           </div>
         </div>
         
-        <div className="flex items-center space-x-2 justify-center">
-          <Switch
-            id="real-time-mode"
-            checked={isRealTimeMode}
-            onCheckedChange={setRealTimeMode}
-          />
-          <Label htmlFor="real-time-mode" className="cursor-pointer">
-            Modo de traducción en tiempo real
-          </Label>
+        <div className="flex flex-col space-y-3">
+          <div className="flex items-center space-x-2 justify-center">
+            <Switch
+              id="real-time-mode"
+              checked={isRealTimeMode}
+              onCheckedChange={setRealTimeMode}
+            />
+            <Label htmlFor="real-time-mode" className="cursor-pointer">
+              Modo de traducción en tiempo real
+            </Label>
+          </div>
+          
+          {isRealTimeMode && (
+            <>
+              <div className="flex items-center space-x-2 justify-center">
+                <Switch
+                  id="simultaneous-capture"
+                  checked={isCapturingWhileSpeaking}
+                  onCheckedChange={setCapturingWhileSpeaking}
+                  disabled={!isRealTimeMode}
+                />
+                <Label htmlFor="simultaneous-capture" className="cursor-pointer">
+                  Capturar audio mientras habla (superposición)
+                </Label>
+              </div>
+              
+              <div className="flex flex-col items-center space-y-1 mt-2">
+                <Label htmlFor="segment-interval" className="text-sm">
+                  Intervalo de segmentación: {segmentInterval/1000} segundos
+                </Label>
+                <input 
+                  type="range" 
+                  id="segment-interval" 
+                  min="1000" 
+                  max="10000" 
+                  step="1000" 
+                  value={segmentInterval}
+                  onChange={handleSegmentIntervalChange}
+                  className="w-64 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                />
+              </div>
+            </>
+          )}
         </div>
 
         <div className="py-4">
@@ -84,8 +127,15 @@ const VoiceAssistant: React.FC = () => {
           <div className="text-center text-sm text-muted-foreground mt-2">
             {state === AssistantState.IDLE && "Ready to translate"}
             {state === AssistantState.LISTENING && 
-              (isRealTimeMode ? "Escuchando y traduciendo en tiempo real..." : "Listening...")}
-            {state === AssistantState.SPEAKING && "Speaking..."}
+              (isRealTimeMode 
+                ? isCapturingWhileSpeaking 
+                  ? "Capturando y traduciendo continuamente..." 
+                  : "Escuchando y traduciendo en tiempo real..." 
+                : "Listening...")}
+            {state === AssistantState.SPEAKING && 
+              (isRealTimeMode && isCapturingWhileSpeaking 
+                ? "Reproduciendo traducción (y seguimos capturando)" 
+                : "Speaking...")}
             {state === AssistantState.PROCESSING && "Processing..."}
             {state === AssistantState.ERROR && "Error occurred"}
           </div>
