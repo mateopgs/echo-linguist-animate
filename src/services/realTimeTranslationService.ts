@@ -1,4 +1,3 @@
-
 import * as sdk from "microsoft-cognitiveservices-speech-sdk";
 import { AzureConfig } from "../types/voice-assistant";
 import { EventEmitter } from "../utils/eventEmitter";
@@ -240,10 +239,25 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
     this.captureTimer = setInterval(() => {
       if (this.currentlyPlaying && this.isCapturingWhileSpeaking && this.translationRecognizer) {
         console.log("Forcing segment creation while speaking");
-        // Force the recognizer to process the current audio buffer
-        this.translationRecognizer.recognized.once((_, event) => {
-          console.log("Forced segment recognition:", event.result.text);
-        });
+        // Create a one-time event handler for the next recognition
+        const originalHandler = this.translationRecognizer.recognized;
+        
+        // Store the original handler and set up a temporary wrapper
+        if (originalHandler) {
+          const tempHandler = (sender: sdk.TranslationRecognizer, event: sdk.TranslationRecognitionEventArgs) => {
+            // Call the original handler
+            originalHandler(sender, event);
+            
+            // Log the forced segment
+            console.log("Forced segment recognition:", event.result.text);
+            
+            // Remove our temporary handler by restoring the original
+            this.translationRecognizer!.recognized = originalHandler;
+          };
+          
+          // Replace with our temporary handler
+          this.translationRecognizer.recognized = tempHandler;
+        }
       }
     }, this.segmentInterval);
   }
