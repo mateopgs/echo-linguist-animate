@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from "react";
 import { AssistantState } from "../types/voice-assistant";
 import { useVoiceAssistant } from "../contexts/VoiceAssistantContext";
@@ -17,7 +18,9 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ state }) => {
       if (width < 400) {
         setBarCount(5);
       } else if (width < 768) {
-        setBarCount(10);
+        setBarCount(8);
+      } else if (width < 1024) {
+        setBarCount(12);
       } else {
         setBarCount(15);
       }
@@ -33,9 +36,9 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ state }) => {
   const isSimultaneousMode = isCapturingWhileSpeaking && isRealTimeMode;
 
   return (
-    <div className="py-4 flex justify-center">
+    <div className="py-2 md:py-4 flex justify-center">
       <div 
-        className={`flex items-end justify-center h-20 space-x-1 w-full max-w-md transition-opacity duration-500 ${isActive ? 'opacity-100' : 'opacity-30'} ${state === AssistantState.ERROR ? 'opacity-50' : ''}`}
+        className={`flex items-end justify-center h-16 md:h-20 space-x-0.5 sm:space-x-1 w-full max-w-md transition-opacity duration-500 ${isActive ? 'opacity-100' : 'opacity-30'} ${state === AssistantState.ERROR ? 'opacity-50' : ''}`}
       >
         {Array.from({ length: barCount }).map((_, index) => {
           // Determine the bar color based on the current state
@@ -54,7 +57,7 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ state }) => {
           return (
             <div 
               key={index} 
-              className={`w-2 md:w-3 rounded-full ${barColor} animate-pulse-slow`}
+              className={`w-1.5 sm:w-2 md:w-3 rounded-full ${barColor} animate-pulse-slow`}
               style={{ 
                 height: isActive 
                   ? `${20 + Math.random() * 60}%` 

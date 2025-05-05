@@ -1,3 +1,4 @@
+
 import React, { useEffect } from "react";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
@@ -55,13 +56,20 @@ const VoiceAssistant: React.FC = () => {
 
   return (
     <Card className="w-full max-w-full sm:max-w-md md:max-w-2xl mx-auto shadow-lg">
-      <CardHeader className="bg-voiceAssistant-primary text-white rounded-t-lg px-4 py-2">
+      <CardHeader className="bg-voiceAssistant-primary text-white rounded-t-lg px-3 py-2 sm:px-4 sm:py-3">
         <div className="flex items-center justify-between w-full">
-          <CardTitle className="text-xl md:text-2xl">Traduce AI</CardTitle>
+          <div className="flex items-center">
+            <img 
+              src="/lovable-uploads/72da0a50-4942-409a-b30c-5d599427fa00.png" 
+              alt="Traduce AI Logo" 
+              className="h-6 sm:h-8 md:h-10 mr-2"
+            />
+            <CardTitle className="text-lg sm:text-xl md:text-2xl">Traduce AI</CardTitle>
+          </div>
           <Dialog>
             <DialogTrigger asChild>
-              <Button variant="ghost" className="text-white">
-                <Settings size={24} className="block md:inline" />
+              <Button variant="ghost" className="text-white h-8 w-8 p-0 sm:h-9 sm:w-9 sm:p-1">
+                <Settings size={20} className="sm:size-24" />
               </Button>
             </DialogTrigger>
             <DialogContent className="w-full max-w-sm md:max-w-lg">
@@ -76,8 +84,8 @@ const VoiceAssistant: React.FC = () => {
           </Dialog>
         </div>
       </CardHeader>
-      <CardContent className="p-4 sm:p-6 space-y-4 md:space-y-6">
-        <div className="flex flex-col md:flex-row gap-4">
+      <CardContent className="p-3 sm:p-4 md:p-6 space-y-3 md:space-y-6">
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
           <div className="flex-1">
             <LanguageSelector
               languages={supportedLanguages}
@@ -96,10 +104,10 @@ const VoiceAssistant: React.FC = () => {
           </div>
         </div>
 
-        <div className="py-4">
+        <div className="py-2 md:py-4">
           <AudioVisualizer state={state} />
 
-          <div className="text-center text-sm text-muted-foreground mt-2">
+          <div className="text-center text-xs sm:text-sm text-muted-foreground mt-1 sm:mt-2">
             {state === AssistantState.IDLE && "Ready to translate"}
             {state === AssistantState.LISTENING &&
               (isRealTimeMode
@@ -132,23 +140,30 @@ const VoiceAssistant: React.FC = () => {
         )}
 
         <div className="flex justify-center pt-2">
-          <Button
-            onClick={handleToggleListen}
-            size="lg"
-            className={`rounded-full w-16 h-16 p-0 ${
-              state === AssistantState.LISTENING
-                ? "bg-red-500 hover:bg-red-600"
-                : "bg-voiceAssistant-primary hover:bg-voiceAssistant-primary/90"
-            }`}
-          >
-            {state === AssistantState.LISTENING ? (
-              <MicOff size={28} />
-            ) : state === AssistantState.SPEAKING ? (
-              <Volume size={28} />
-            ) : (
-              <Mic size={28} />
-            )}
-          </Button>
+          <div className="flex flex-row items-center justify-center">
+            <img 
+              src="/lovable-uploads/72da0a50-4942-409a-b30c-5d599427fa00.png" 
+              alt="Traduce AI Logo" 
+              className="h-8 mr-3"
+            />
+            <Button
+              onClick={handleToggleListen}
+              size="lg"
+              className={`rounded-full w-12 h-12 sm:w-16 sm:h-16 p-0 ${
+                state === AssistantState.LISTENING
+                  ? "bg-red-500 hover:bg-red-600"
+                  : "bg-voiceAssistant-primary hover:bg-voiceAssistant-primary/90"
+              }`}
+            >
+              {state === AssistantState.LISTENING ? (
+                <MicOff size={24} />
+              ) : state === AssistantState.SPEAKING ? (
+                <Volume size={24} />
+              ) : (
+                <Mic size={24} />
+              )}
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>
