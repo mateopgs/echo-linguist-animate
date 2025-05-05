@@ -57,7 +57,7 @@ const VoiceAssistant: React.FC = () => {
     <Card className="w-full max-w-full sm:max-w-md md:max-w-2xl mx-auto shadow-lg">
       <CardHeader className="bg-voiceAssistant-primary text-white rounded-t-lg px-4 py-2">
         <div className="flex items-center justify-between w-full">
-          <CardTitle className="text-xl md:text-2xl">Translate AI</CardTitle>
+          <CardTitle className="text-xl md:text-2xl">Traduce AI</CardTitle>
           <Dialog>
             <DialogTrigger asChild>
               <Button variant="ghost" className="text-white">
