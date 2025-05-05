@@ -2,7 +2,7 @@
 import React, { useEffect } from "react";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
-import { Mic, MicOff, Volume, VolumeX, Settings } from "lucide-react";
+import { Mic, MicOff, Volume, Settings } from "lucide-react";
 import { useVoiceAssistant } from "../contexts/VoiceAssistantContext";
 import { AssistantState } from "../types/voice-assistant";
 import AudioVisualizer from "./AudioVisualizer";
@@ -56,7 +56,7 @@ const VoiceAssistant: React.FC = () => {
 
   return (
     <Card className="w-full max-w-full sm:max-w-md md:max-w-2xl mx-auto shadow-lg">
-      <CardHeader className="bg-voiceAssistant-primary text-white rounded-t-lg px-3 py-2 sm:px-4 sm:py-3">
+      <CardHeader className="bg-gradient-to-r from-purple-900 to-voiceAssistant-primary text-white rounded-t-lg px-3 py-2 sm:px-4 sm:py-3">
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center">
             <img 
@@ -64,7 +64,6 @@ const VoiceAssistant: React.FC = () => {
               alt="Traduce AI Logo" 
               className="h-6 sm:h-8 md:h-10 mr-2"
             />
-            <CardTitle className="text-lg sm:text-xl md:text-2xl">Traduce AI</CardTitle>
           </div>
           <Dialog>
             <DialogTrigger asChild>
@@ -140,30 +139,23 @@ const VoiceAssistant: React.FC = () => {
         )}
 
         <div className="flex justify-center pt-2">
-          <div className="flex flex-row items-center justify-center">
-            <img 
-              src="/lovable-uploads/72da0a50-4942-409a-b30c-5d599427fa00.png" 
-              alt="Traduce AI Logo" 
-              className="h-8 mr-3"
-            />
-            <Button
-              onClick={handleToggleListen}
-              size="lg"
-              className={`rounded-full w-12 h-12 sm:w-16 sm:h-16 p-0 ${
-                state === AssistantState.LISTENING
-                  ? "bg-red-500 hover:bg-red-600"
-                  : "bg-voiceAssistant-primary hover:bg-voiceAssistant-primary/90"
-              }`}
-            >
-              {state === AssistantState.LISTENING ? (
-                <MicOff size={24} />
-              ) : state === AssistantState.SPEAKING ? (
-                <Volume size={24} />
-              ) : (
-                <Mic size={24} />
-              )}
-            </Button>
-          </div>
+          <Button
+            onClick={handleToggleListen}
+            size="lg"
+            className={`rounded-full w-12 h-12 sm:w-16 sm:h-16 p-0 ${
+              state === AssistantState.LISTENING
+                ? "bg-red-500 hover:bg-red-600"
+                : "bg-voiceAssistant-primary hover:bg-voiceAssistant-primary/90"
+            }`}
+          >
+            {state === AssistantState.LISTENING ? (
+              <MicOff size={24} />
+            ) : state === AssistantState.SPEAKING ? (
+              <Volume size={24} />
+            ) : (
+              <Mic size={24} />
+            )}
+          </Button>
         </div>
       </CardContent>
     </Card>
