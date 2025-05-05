@@ -2,6 +2,7 @@
 import React, { createContext, useState, useContext, useEffect, useRef } from "react";
 import { azureSpeechService } from "../services/azureSpeechService";
 import { realTimeTranslationService, SegmentStatus, AudioSegment } from "../services/realTimeTranslationService";
+import { azureOpenAIService } from "../services/azureOpenAIService"; // Importamos el nuevo servicio
 import { SupportedLanguages, TranscriptionResult, AssistantState, AzureConfig } from "../types/voice-assistant";
 import { useToast } from "../hooks/use-toast";
 
@@ -287,9 +288,19 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
           
           setState(AssistantState.PROCESSING);
           
-          const result: TranscriptionResult = {
+          // NUEVO: Mejorar la traducción con Azure OpenAI antes de procesarla
+          console.log("Mejorando traducción con Azure OpenAI");
+          const improvedTranslation = await azureOpenAIService.improveTranslation(
             originalText,
             translatedText,
+            sourceLanguage,
+            targetLanguage
+          );
+          console.log("Traducción mejorada:", improvedTranslation);
+          
+          const result: TranscriptionResult = {
+            originalText,
+            translatedText: improvedTranslation, // Usar la traducción mejorada
             fromLanguage: sourceLanguage,
             toLanguage: targetLanguage,
             timestamp: new Date(),
@@ -297,7 +308,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
 
           setCurrentTranscription({
             originalText,
-            translatedText,
+            translatedText: improvedTranslation, // Usar la traducción mejorada
           });
 
           setTranscriptionHistory((prev) => [...prev, result]);
@@ -305,9 +316,9 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
           // Speak the translated text
           setState(AssistantState.SPEAKING);
           try {
-            console.log("Synthesizing speech for:", translatedText);
+            console.log("Synthesizing speech for:", improvedTranslation); // Usar la traducción mejorada
             const audioBuffer = await azureSpeechService.synthesizeSpeech(
-              translatedText,
+              improvedTranslation, // Usar la traducción mejorada
               targetLanguage
             );
             console.log("Audio synthesized, playing...");

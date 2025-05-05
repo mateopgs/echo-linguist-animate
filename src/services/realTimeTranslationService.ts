@@ -1,6 +1,7 @@
 import * as sdk from "microsoft-cognitiveservices-speech-sdk";
 import { AzureConfig } from "../types/voice-assistant";
 import { EventEmitter } from "../utils/eventEmitter";
+import { azureOpenAIService } from "./azureOpenAIService";
 
 // Segment processing states and events
 export enum SegmentStatus {
@@ -306,6 +307,22 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
       segment.status = SegmentStatus.SYNTHESIZING;
       this.emit("segmentUpdated", segment);
       console.log(`Synthesizing segment ${segment.id}: "${segment.translatedText}"`);
+      
+      // NUEVO: Mejorar la traducción con Azure OpenAI antes de sintetizar
+      if (segment.originalText && segment.translatedText) {
+        console.log(`Enviando a mejorar traducción para segmento ${segment.id}`);
+        const improvedTranslation = await azureOpenAIService.improveTranslation(
+          segment.originalText,
+          segment.translatedText,
+          this.sourceLanguage,
+          this.targetLanguage
+        );
+        
+        // Actualizar la traducción mejorada
+        segment.translatedText = improvedTranslation;
+        this.emit("segmentUpdated", segment);
+        console.log(`Traducción mejorada para segmento ${segment.id}: "${improvedTranslation}"`);
+      }
       
       // Configure speech synthesizer
       const speechConfig = sdk.SpeechConfig.fromSubscription(
