@@ -1,15 +1,15 @@
 import React, { useEffect } from "react";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
-import { Mic, MicOff, Volume, VolumeX } from "lucide-react";
+import { Mic, MicOff, Volume, VolumeX, Settings } from "lucide-react";
 import { useVoiceAssistant } from "../contexts/VoiceAssistantContext";
 import { AssistantState } from "../types/voice-assistant";
 import AudioVisualizer from "./AudioVisualizer";
 import TranscriptionDisplay from "./TranscriptionDisplay";
 import LanguageSelector from "./LanguageSelector";
-import { Switch } from "./ui/switch";
-import { Label } from "./ui/label";
 import ActiveSegmentsList from "./ActiveSegmentsList";
+import { Dialog, DialogTrigger, DialogContent, DialogHeader as ConfigDialogHeader, DialogTitle as ConfigDialogTitle, DialogClose } from "./ui/dialog";
+import ConfigForm from "./ConfigForm";
 
 const VoiceAssistant: React.FC = () => {
   const {
@@ -44,11 +44,6 @@ const VoiceAssistant: React.FC = () => {
     const language = supportedLanguages.find((lang) => lang.code === code);
     return language ? language.name : code;
   };
-  
-  const handleSegmentIntervalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = parseInt(e.target.value);
-    setSegmentInterval(value);
-  };
 
   // Agregamos logs para depuración
   useEffect(() => {
@@ -61,7 +56,25 @@ const VoiceAssistant: React.FC = () => {
   return (
     <Card className="w-full max-w-3xl mx-auto shadow-lg">
       <CardHeader className="bg-voiceAssistant-primary text-white rounded-t-lg">
-        <CardTitle className="text-center text-2xl">Traduce AI</CardTitle>
+        <div className="flex items-center justify-between w-full">
+          <CardTitle className="text-2xl">Traduce AI</CardTitle>
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="ghost" className="text-white">
+                <Settings size={24} />
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <ConfigDialogHeader>
+                <ConfigDialogTitle>Configuración</ConfigDialogTitle>
+              </ConfigDialogHeader>
+              <ConfigForm />
+              <DialogClose asChild>
+                <Button className="mt-4 w-full">Cerrar</Button>
+              </DialogClose>
+            </DialogContent>
+          </Dialog>
+        </div>
       </CardHeader>
       <CardContent className="p-6 space-y-6">
         <div className="flex flex-col md:flex-row gap-4">
@@ -82,66 +95,21 @@ const VoiceAssistant: React.FC = () => {
             />
           </div>
         </div>
-        
-        <div className="flex flex-col space-y-3">
-          <div className="flex items-center space-x-2 justify-center">
-            <Switch
-              id="real-time-mode"
-              checked={isRealTimeMode}
-              onCheckedChange={setRealTimeMode}
-            />
-            <Label htmlFor="real-time-mode" className="cursor-pointer">
-              Modo de traducción en tiempo real
-            </Label>
-          </div>
-          
-          {isRealTimeMode && (
-            <>
-              <div className="flex items-center space-x-2 justify-center">
-                <Switch
-                  id="simultaneous-capture"
-                  checked={isCapturingWhileSpeaking}
-                  onCheckedChange={setCapturingWhileSpeaking}
-                  disabled={!isRealTimeMode}
-                />
-                <Label htmlFor="simultaneous-capture" className="cursor-pointer">
-                  Capturar audio mientras habla (superposición)
-                </Label>
-              </div>
-              
-              <div className="flex flex-col items-center space-y-1 mt-2">
-                <Label htmlFor="segment-interval" className="text-sm">
-                  Intervalo de segmentación: {segmentInterval/1000} segundos
-                </Label>
-                <input 
-                  type="range" 
-                  id="segment-interval" 
-                  min="1000" 
-                  max="10000" 
-                  step="1000" 
-                  value={segmentInterval}
-                  onChange={handleSegmentIntervalChange}
-                  className="w-64 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                />
-              </div>
-            </>
-          )}
-        </div>
 
         <div className="py-4">
           <AudioVisualizer state={state} />
-          
+
           <div className="text-center text-sm text-muted-foreground mt-2">
             {state === AssistantState.IDLE && "Ready to translate"}
-            {state === AssistantState.LISTENING && 
-              (isRealTimeMode 
-                ? isCapturingWhileSpeaking 
-                  ? "Capturando y traduciendo continuamente..." 
-                  : "Escuchando y traduciendo en tiempo real..." 
+            {state === AssistantState.LISTENING &&
+              (isRealTimeMode
+                ? isCapturingWhileSpeaking
+                  ? "Capturando y traduciendo continuamente..."
+                  : "Escuchando y traduciendo en tiempo real..."
                 : "Listening...")}
-            {state === AssistantState.SPEAKING && 
-              (isRealTimeMode && isCapturingWhileSpeaking 
-                ? "Reproduciendo traducción (y seguimos capturando)" 
+            {state === AssistantState.SPEAKING &&
+              (isRealTimeMode && isCapturingWhileSpeaking
+                ? "Reproduciendo traducción (y seguimos capturando)"
                 : "Speaking...")}
             {state === AssistantState.PROCESSING && "Processing..."}
             {state === AssistantState.ERROR && "Error occurred"}
@@ -154,9 +122,9 @@ const VoiceAssistant: React.FC = () => {
           originalLanguage={getLanguageName(sourceLanguage)}
           targetLanguage={getLanguageName(targetLanguage)}
         />
-        
+
         {isRealTimeMode && activeSegments.length > 0 && (
-          <ActiveSegmentsList 
+          <ActiveSegmentsList
             segments={activeSegments}
             sourceLanguageName={getLanguageName(sourceLanguage)}
             targetLanguageName={getLanguageName(targetLanguage)}

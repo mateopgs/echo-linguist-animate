@@ -1,61 +1,54 @@
-
 import React, { useState } from "react";
-import { Button } from "./ui/button";
-import { Input } from "./ui/input";
+import { Switch } from "./ui/switch";
+import { Label } from "./ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { useVoiceAssistant } from "../contexts/VoiceAssistantContext";
 
 const ConfigForm: React.FC = () => {
-  const { apiKey, region, setApiKey, setRegion } = useVoiceAssistant();
-  const [keyInput, setKeyInput] = useState(apiKey);
-  const [regionInput, setRegionInput] = useState(region);
+  const {
+    isRealTimeMode,
+    setRealTimeMode,
+    isCapturingWhileSpeaking,
+    setCapturingWhileSpeaking,
+    segmentInterval,
+    setSegmentInterval
+  } = useVoiceAssistant();
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setApiKey(keyInput);
-    setRegion(regionInput);
+  const handleIntervalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSegmentInterval(parseInt(e.target.value));
   };
 
   return (
     <Card className="w-full max-w-md">
       <CardHeader>
-        <CardTitle>Azure Speech Service Configuration</CardTitle>
-        <CardDescription>
-          Enter your Azure Speech Service API key and region to get started.
-        </CardDescription>
+        <CardTitle>Configuración</CardTitle>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <label htmlFor="apiKey" className="text-sm font-medium">
-              API Key
-            </label>
-            <Input
-              id="apiKey"
-              value={keyInput}
-              onChange={(e) => setKeyInput(e.target.value)}
-              placeholder="Enter your Azure Speech API key"
-              required
-            />
+        <div className="space-y-4">
+          <div className="flex items-center space-x-2">
+            <Switch id="real-time-mode" checked={isRealTimeMode} onCheckedChange={setRealTimeMode} />
+            <Label htmlFor="real-time-mode">Modo de traducción en tiempo real</Label>
           </div>
 
-          <div className="space-y-2">
-            <label htmlFor="region" className="text-sm font-medium">
-              Region
-            </label>
-            <Input
-              id="region"
-              value={regionInput}
-              onChange={(e) => setRegionInput(e.target.value)}
-              placeholder="e.g., eastus, westeurope"
-              required
-            />
+          <div className="flex items-center space-x-2">
+            <Switch id="simultaneous-capture" checked={isCapturingWhileSpeaking} onCheckedChange={setCapturingWhileSpeaking} />
+            <Label htmlFor="simultaneous-capture">Capturar audio mientras habla (superposición)</Label>
           </div>
 
-          <Button type="submit" className="w-full">
-            Save Configuration
-          </Button>
-        </form>
+          <div className="space-y-1">
+            <Label htmlFor="segment-interval">Intervalo de segmentación: {segmentInterval / 1000} segundos</Label>
+            <input
+              type="range"
+              id="segment-interval"
+              min="1000"
+              max="10000"
+              step="1000"
+              value={segmentInterval}
+              onChange={handleIntervalChange}
+              className="w-full"
+            />
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
