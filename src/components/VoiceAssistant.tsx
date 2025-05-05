@@ -125,14 +125,9 @@ const VoiceAssistant: React.FC = () => {
           </div>
         </div>
 
-        <TranscriptionDisplay
-          originalText={currentTranscription.originalText}
-          translatedText={currentTranscription.translatedText}
-          originalLanguage={getLanguageName(sourceLanguage)}
-          targetLanguage={getLanguageName(targetLanguage)}
-        />
+        {/* TranscriptionDisplay removed to reserve space for dynamic segments */}
 
-        {isRealTimeMode && activeSegments.length > 0 && (
+        {isRealTimeMode && (
           <ActiveSegmentsList
             segments={activeSegments}
             sourceLanguageName={getLanguageName(sourceLanguage)}
