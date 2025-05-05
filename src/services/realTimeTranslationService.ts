@@ -1,4 +1,3 @@
-
 import * as sdk from "microsoft-cognitiveservices-speech-sdk";
 import { AzureConfig } from "../types/voice-assistant";
 import { EventEmitter } from "../utils/eventEmitter";
@@ -112,18 +111,16 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
       translationConfig.addTargetLanguage(this.targetLanguage.split('-')[0]);
 
       // Configure for continuous recognition with segmentation
+      // Tune silence detection to improve utterance capture
       translationConfig.setProperty(
-        sdk.PropertyId.SpeechServiceConnection_InitialSilenceTimeoutMs, 
-        "5000"
+        sdk.PropertyId.SpeechServiceConnection_InitialSilenceTimeoutMs,
+        "10000" // wait up to 10s for initial speech
       );
       translationConfig.setProperty(
-        sdk.PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs, 
-        "1000"
+        sdk.PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs,
+        this.segmentInterval.toString() // use configured segment interval for end silence
       );
-      translationConfig.setProperty(
-        sdk.PropertyId.Speech_SegmentationSilenceTimeoutMs,
-        this.segmentInterval.toString()
-      );
+      // Remove explicit segmentation override (Speech_SegmentationSilenceTimeoutMs)
       
       // Setup audio config for microphone
       const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
@@ -136,6 +133,8 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
 
       // Handle recognition events
       this.translationRecognizer.recognizing = (_, event) => {
+        // Ignore recognition during playback to prevent feedback loops
+        if (this.currentlyPlaying) return;
         if (event.result.reason === sdk.ResultReason.TranslatingSpeech) {
           // This is interim recognition - could be used for real-time display
           console.log("Recognizing:", event.result.text);
@@ -314,8 +313,10 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
         this.config.region
       );
       speechConfig.speechSynthesisLanguage = this.targetLanguage;
-      
-      const synthesizer = new sdk.SpeechSynthesizer(speechConfig);
+      // Use pull stream so SDK does not auto-play audio
+      const pullStream = sdk.AudioOutputStream.createPullStream();
+      const audioConfig = sdk.AudioConfig.fromStreamOutput(pullStream);
+      const synthesizer = new sdk.SpeechSynthesizer(speechConfig, audioConfig);
       
       // Synthesize the translated text
       const result = await new Promise<sdk.SpeechSynthesisResult>((resolve, reject) => {

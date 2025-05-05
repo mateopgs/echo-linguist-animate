@@ -1,4 +1,3 @@
-
 import * as sdk from "microsoft-cognitiveservices-speech-sdk";
 import { AzureConfig, SupportedLanguages } from "../types/voice-assistant";
 
@@ -116,8 +115,11 @@ class AzureSpeechService {
         this.config.region
       );
       speechConfig.speechSynthesisLanguage = language;
-      
-      const synthesizer = new sdk.SpeechSynthesizer(speechConfig);
+
+      // Create pull stream to prevent automatic playback
+      const pullAudioOutputStream = sdk.AudioOutputStream.createPullStream();
+      const audioConfig = sdk.AudioConfig.fromStreamOutput(pullAudioOutputStream);
+      const synthesizer = new sdk.SpeechSynthesizer(speechConfig, audioConfig);
       
       return new Promise((resolve, reject) => {
         synthesizer.speakTextAsync(
