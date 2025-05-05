@@ -1,4 +1,3 @@
-
 import React, { useEffect } from "react";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
@@ -56,7 +55,7 @@ const VoiceAssistant: React.FC = () => {
 
   return (
     <Card className="w-full max-w-full sm:max-w-md md:max-w-2xl mx-auto shadow-lg">
-      <CardHeader className="bg-gradient-to-r from-purple-900 to-voiceAssistant-primary text-white rounded-t-lg px-3 py-2 sm:px-4 sm:py-3">
+      <CardHeader className="bg-gradient-to-r from-gray-100 via-purple-300 to-voiceAssistant-primary text-white rounded-t-lg px-3 py-2 sm:px-4 sm:py-3">
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center">
             <img 
