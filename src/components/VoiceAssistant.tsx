@@ -1,4 +1,3 @@
-
 import React, { useEffect } from "react";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
@@ -62,7 +61,7 @@ const VoiceAssistant: React.FC = () => {
   return (
     <Card className="w-full max-w-3xl mx-auto shadow-lg">
       <CardHeader className="bg-voiceAssistant-primary text-white rounded-t-lg">
-        <CardTitle className="text-center text-2xl">Voice Translator</CardTitle>
+        <CardTitle className="text-center text-2xl">Traduce AI</CardTitle>
       </CardHeader>
       <CardContent className="p-6 space-y-6">
         <div className="flex flex-col md:flex-row gap-4">
