@@ -56,7 +56,7 @@ const VoiceAssistant: React.FC = () => {
   return (
     <Card className="w-full max-w-full sm:max-w-md md:max-w-2xl mx-auto shadow-lg">
       <CardHeader
-        style={{ background: 'linear-gradient(to right, white 0%, white 20%, #7c3aed 100%)' }}
+        style={{ background: 'linear-gradient(to right, white 0%, white 15%, #7c3aed 100%)' }}
         className="text-white rounded-t-lg px-3 py-2 sm:px-4 sm:py-3 shadow-sm"
       >
         <div className="flex items-center justify-between w-full">
