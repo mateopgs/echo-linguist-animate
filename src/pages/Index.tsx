@@ -4,18 +4,11 @@ import VoiceAssistant from "../components/VoiceAssistant";
 
 const Index = () => {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white to-voiceAssistant-background">
-      <div className="container mx-auto py-8 px-4">
-        <header className="text-center mb-8">
-          {/* Title and subtitle removed */}
-        </header>
-
-        <VoiceAssistantProvider>
-          <div className="flex flex-col items-center space-y-8">
-            <VoiceAssistant />
-          </div>
-        </VoiceAssistantProvider>
-      </div>
+    <div className="min-h-screen bg-gradient-to-b from-white to-voiceAssistant-background flex items-center justify-center px-2 sm:px-4 py-4">
+      {/* Directly render VoiceAssistant centered */}
+      <VoiceAssistantProvider>
+        <VoiceAssistant />
+      </VoiceAssistantProvider>
     </div>
   );
 };

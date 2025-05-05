@@ -1,4 +1,3 @@
-
 import React from "react";
 import { AudioSegment, SegmentStatus } from "../services/realTimeTranslationService";
 
@@ -11,21 +10,21 @@ type ActiveSegmentsListProps = {
 const getStatusLabel = (status: SegmentStatus): string => {
   switch (status) {
     case SegmentStatus.RECORDING:
-      return "Grabando...";
+      return "Recording...";
     case SegmentStatus.RECOGNIZING:
-      return "Reconociendo...";
+      return "Recognizing...";
     case SegmentStatus.TRANSLATING:
-      return "Traduciendo...";
+      return "Translating...";
     case SegmentStatus.SYNTHESIZING:
-      return "Sintetizando...";
+      return "Synthesizing...";
     case SegmentStatus.PLAYING:
-      return "Reproduciendo...";
+      return "Playing...";
     case SegmentStatus.COMPLETED:
-      return "Completado";
+      return "Completed";
     case SegmentStatus.ERROR:
       return "Error";
     default:
-      return "Procesando...";
+      return "Processing...";
   }
 };
 
@@ -66,8 +65,8 @@ const ActiveSegmentsList: React.FC<ActiveSegmentsListProps> = ({
 
   return (
     <div className="space-y-4 mt-4">
-      <h3 className="text-sm font-medium text-gray-500">Segmentos activos</h3>
-      <div className="space-y-3">
+      <h3 className="text-sm font-medium text-gray-500 text-center md:text-left">Active Segments</h3>
+      <div className="space-y-3 md:space-y-0 md:grid md:grid-cols-2 md:gap-4">
         {activeSegments.map((segment) => (
           <div
             key={segment.id}
@@ -75,7 +74,7 @@ const ActiveSegmentsList: React.FC<ActiveSegmentsListProps> = ({
           >
             <div className="flex justify-between items-center mb-1">
               <span className="text-xs font-medium">
-                Segmento #{segment.id + 1}
+                Segment #{segment.id + 1}
               </span>
               <span
                 className={`text-xs font-medium ${getStatusColor(

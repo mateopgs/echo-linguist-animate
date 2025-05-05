@@ -54,29 +54,29 @@ const VoiceAssistant: React.FC = () => {
   }, [state, activeSegments, currentTranscription, isRealTimeMode]);
 
   return (
-    <Card className="w-full max-w-3xl mx-auto shadow-lg">
-      <CardHeader className="bg-voiceAssistant-primary text-white rounded-t-lg">
+    <Card className="w-full max-w-full sm:max-w-md md:max-w-2xl mx-auto shadow-lg">
+      <CardHeader className="bg-voiceAssistant-primary text-white rounded-t-lg px-4 py-2">
         <div className="flex items-center justify-between w-full">
-          <CardTitle className="text-2xl">Traduce AI</CardTitle>
+          <CardTitle className="text-xl md:text-2xl">Translate AI</CardTitle>
           <Dialog>
             <DialogTrigger asChild>
               <Button variant="ghost" className="text-white">
-                <Settings size={24} />
+                <Settings size={24} className="block md:inline" />
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="w-full max-w-sm md:max-w-lg">
               <ConfigDialogHeader>
-                <ConfigDialogTitle>Configuración</ConfigDialogTitle>
+                <ConfigDialogTitle>Settings</ConfigDialogTitle>
               </ConfigDialogHeader>
               <ConfigForm />
               <DialogClose asChild>
-                <Button className="mt-4 w-full">Cerrar</Button>
+                <Button className="mt-4 w-full">Close</Button>
               </DialogClose>
             </DialogContent>
           </Dialog>
         </div>
       </CardHeader>
-      <CardContent className="p-6 space-y-6">
+      <CardContent className="p-4 sm:p-6 space-y-4 md:space-y-6">
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1">
             <LanguageSelector
@@ -104,12 +104,12 @@ const VoiceAssistant: React.FC = () => {
             {state === AssistantState.LISTENING &&
               (isRealTimeMode
                 ? isCapturingWhileSpeaking
-                  ? "Capturando y traduciendo continuamente..."
-                  : "Escuchando y traduciendo en tiempo real..."
+                  ? "Capturing and translating continuously..."
+                  : "Listening and translating in real-time..."
                 : "Listening...")}
             {state === AssistantState.SPEAKING &&
               (isRealTimeMode && isCapturingWhileSpeaking
-                ? "Reproduciendo traducción (y seguimos capturando)"
+                ? "Playing translation (still capturing)"
                 : "Speaking...")}
             {state === AssistantState.PROCESSING && "Processing..."}
             {state === AssistantState.ERROR && "Error occurred"}
