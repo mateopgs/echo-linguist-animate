@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, useEffect, useRef } from "react";
 import { azureSpeechService } from "../services/azureSpeechService";
 import { realTimeTranslationService, SegmentStatus, AudioSegment } from "../services/realTimeTranslationService";
@@ -63,7 +62,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
   const [isConfigured, setIsConfigured] = useState(false);
   const [isRealTimeMode, setRealTimeMode] = useState(true); // Activamos el modo en tiempo real por defecto
   const [isCapturingWhileSpeaking, setCapturingWhileSpeaking] = useState(true);
-  const [segmentInterval, setSegmentInterval] = useState(3000); // Default to 3 seconds
+  const [segmentInterval, setSegmentInterval] = useState(300); // Default to 0.3 seconds
   const { toast } = useToast();
 
   // Monitorear cambios importantes con logs

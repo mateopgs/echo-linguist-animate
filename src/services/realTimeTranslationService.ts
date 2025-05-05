@@ -384,24 +384,17 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
       return;
     }
     
-    // Sort by timestamp to ensure correct order
+    // Ensure strict chronological order: sort and pick the first segment only
     this.audioQueue.sort((a, b) => a.timestamp - b.timestamp);
-    
-    // Find next segment with audio data ready for playback
-    const nextSegmentIndex = this.audioQueue.findIndex(s => 
-      s.status === SegmentStatus.PLAYING && s.audioData
-    );
-    
-    if (nextSegmentIndex === -1) {
-      console.log("No segments ready for playback yet");
+    const segment = this.audioQueue[0];
+    if (segment.status !== SegmentStatus.PLAYING || !segment.audioData) {
+      console.log("Earliest segment not ready for playback yet");
       return;
     }
-    
-    // Process the next segment in the queue
-    const segment = this.audioQueue[nextSegmentIndex];
+
     console.log(`Playing segment ${segment.id}: "${segment.translatedText}"`);
     this.currentlyPlaying = true;
-    
+
     try {
       await this.playAudio(segment.audioData!);
       
@@ -411,7 +404,7 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
       console.log(`Playback completed for segment ${segment.id}`);
       
       // Remove completed segment from queue
-      this.audioQueue.splice(nextSegmentIndex, 1);
+      this.audioQueue.shift();
     } catch (error) {
       console.error(`Error playing audio for segment ${segment.id}:`, error);
       segment.status = SegmentStatus.ERROR;
