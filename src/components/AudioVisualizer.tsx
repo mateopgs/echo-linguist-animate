@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { AssistantState } from "../types/voice-assistant";
 import { useVoiceAssistant } from "../contexts/VoiceAssistantContext";
@@ -45,14 +44,17 @@ const AudioVisualizer: React.FC<AudioVisualizerProps> = ({ state }) => {
           let barColor = "bg-gray-300";
           
           if (isSimultaneousMode) {
-            // Show gradient when capturing and speaking simultaneously
-            barColor = "bg-gradient-to-t from-red-500 to-green-500";
+            // Gradiente morado a gris en modo simultáneo
+            barColor = "bg-gradient-to-t from-purple-600 to-gray-300";
           } else if (isRealTimeActive) {
-            barColor = "bg-gradient-to-t from-red-500 to-blue-500";
+            // Gradiente morado a gris claro en tiempo real
+            barColor = "bg-gradient-to-t from-purple-500 to-gray-400";
           } else if (state === AssistantState.LISTENING) {
-            barColor = "bg-red-500";
+            // Estado de escucha en morado
+            barColor = "bg-purple-500";
           } else if (state === AssistantState.SPEAKING) {
-            barColor = "bg-green-500";
+            // Estado de habla en gris medio
+            barColor = "bg-gray-500";
           }
           
           return (
