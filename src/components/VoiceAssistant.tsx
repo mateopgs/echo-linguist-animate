@@ -1,11 +1,11 @@
-
 import React, { useEffect } from "react";
 import { Button } from "./ui/button";
-import { Card, CardContent, CardHeader } from "./ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Mic, MicOff, Volume, Settings } from "lucide-react";
 import { useVoiceAssistant } from "../contexts/VoiceAssistantContext";
 import { AssistantState } from "../types/voice-assistant";
 import AudioVisualizer from "./AudioVisualizer";
+import TranscriptionDisplay from "./TranscriptionDisplay";
 import LanguageSelector from "./LanguageSelector";
 import ActiveSegmentsList from "./ActiveSegmentsList";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader as ConfigDialogHeader, DialogTitle as ConfigDialogTitle, DialogClose } from "./ui/dialog";
@@ -24,7 +24,11 @@ const VoiceAssistant: React.FC = () => {
     startListening,
     stopListening,
     isRealTimeMode,
-    isCapturingWhileSpeaking
+    setRealTimeMode,
+    isCapturingWhileSpeaking,
+    setCapturingWhileSpeaking,
+    segmentInterval,
+    setSegmentInterval
   } = useVoiceAssistant();
 
   const handleToggleListen = () => {
@@ -52,7 +56,7 @@ const VoiceAssistant: React.FC = () => {
   return (
     <Card className="w-full max-w-full sm:max-w-md md:max-w-2xl mx-auto shadow-lg">
       <CardHeader
-        style={{ background: 'linear-gradient(to right, #f0f0f0 0%, #d8d8d8 15%, #7c3aed 100%)' }}
+        style={{ background: 'linear-gradient(to right, white 0%, white 15%, #7c3aed 100%)' }}
         className="text-white rounded-t-lg px-3 py-2 sm:px-4 sm:py-3 shadow-sm"
       >
         <div className="flex items-center justify-between w-full">
@@ -120,6 +124,8 @@ const VoiceAssistant: React.FC = () => {
             {state === AssistantState.ERROR && "Error occurred"}
           </div>
         </div>
+
+        {/* TranscriptionDisplay removed to reserve space for dynamic segments */}
 
         {isRealTimeMode && (
           <ActiveSegmentsList

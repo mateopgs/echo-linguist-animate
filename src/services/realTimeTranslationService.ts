@@ -48,8 +48,6 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
   private segmentInterval: number = 3000; // 3 seconds per segment by default
   private captureTimer: NodeJS.Timeout | null = null;
   private isCapturingWhileSpeaking: boolean = false;
-  private maxWordsPerSegment: number = 10; // Maximum words per segment
-  private currentSegmentText: string = ""; // Current text being accumulated
 
   constructor() {
     super();
@@ -89,16 +87,6 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
     return this.isCapturingWhileSpeaking;
   }
 
-  // Helper to count words in a text
-  private countWords(text: string): number {
-    return text.trim().split(/\s+/).length;
-  }
-
-  // Check if we need to segment based on word count
-  private shouldSegmentByWordCount(text: string): boolean {
-    return this.countWords(text) >= this.maxWordsPerSegment;
-  }
-
   public async startSession(): Promise<void> {
     if (!this.config) {
       throw new Error("Translation service not configured with Azure credentials");
@@ -112,7 +100,6 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
     this.processing = true;
     this.audioQueue = [];
     this.segmentCounter = 0;
-    this.currentSegmentText = "";
     
     try {
       // Create translation recognizer
@@ -134,6 +121,7 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
         sdk.PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs,
         this.segmentInterval.toString() // use configured segment interval for end silence
       );
+      // Remove explicit segmentation override (Speech_SegmentationSilenceTimeoutMs)
       
       // Setup audio config for microphone
       const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
@@ -149,22 +137,19 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
         // Ignore recognition during playback to prevent feedback loops
         if (this.currentlyPlaying) return;
         if (event.result.reason === sdk.ResultReason.TranslatingSpeech) {
-          const currentText = event.result.text || "";
-
-          // Check if the current recognition should be segmented by word count
-          if (this.shouldSegmentByWordCount(currentText)) {
-            console.log("Interim text exceeds maximum word count, will segment soon");
-          }
+          // This is interim recognition - could be used for real-time display
+          console.log("Recognizing:", event.result.text);
           
-          // Update UI with interim recognition
+          // Crear un segmento temporal para mostrar progreso
           const tempSegment: AudioSegment = {
-            id: -1, // Temporary ID for UI updates
+            id: -1, // ID temporal
             timestamp: Date.now(),
             status: SegmentStatus.RECOGNIZING,
-            originalText: currentText,
+            originalText: event.result.text,
             translatedText: event.result.translations.get(this.targetLanguage.split('-')[0]) || ""
           };
           
+          // Emitir un evento para actualizar la UI con reconocimiento provisional
           this.emit("segmentUpdated", tempSegment);
         }
       };
@@ -178,71 +163,27 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
           event.result.reason === sdk.ResultReason.TranslatedSpeech &&
           event.result.text.trim() !== ""
         ) {
-          const recognizedText = event.result.text.trim();
+          // Create a new segment
+          const segmentId = this.segmentCounter++;
           const targetLang = this.targetLanguage.split('-')[0];
           const translation = event.result.translations.get(targetLang);
           
-          // Check if we need to segment by word count
-          const words = recognizedText.split(/\s+/);
+          console.log("Received translation:", translation);
           
-          if (words.length > this.maxWordsPerSegment) {
-            // If recognition result exceeds max word count, split into multiple segments
-            console.log(`Recognition exceeds ${this.maxWordsPerSegment} words, splitting into segments`);
-            
-            let startIdx = 0;
-            
-            while (startIdx < words.length) {
-              const endIdx = Math.min(startIdx + this.maxWordsPerSegment, words.length);
-              const segmentWords = words.slice(startIdx, endIdx);
-              const segmentText = segmentWords.join(" ");
-              
-              // For each segment, estimate the translation portion
-              // This is a simple approximation - in a real app, you might need more sophisticated logic
-              const translationWords = translation ? translation.split(/\s+/) : [];
-              const translationRatio = translationWords.length / words.length;
-              const estimatedTransSegmentStart = Math.floor(startIdx * translationRatio);
-              const estimatedTransSegmentEnd = Math.floor(endIdx * translationRatio);
-              const segmentTranslation = translationWords
-                .slice(
-                  Math.min(estimatedTransSegmentStart, translationWords.length),
-                  Math.min(estimatedTransSegmentEnd, translationWords.length)
-                )
-                .join(" ");
-              
-              // Create segment and queue for processing
-              const segmentId = this.segmentCounter++;
-              const segment: AudioSegment = {
-                id: segmentId,
-                timestamp: Date.now(),
-                status: SegmentStatus.RECOGNIZING,
-                originalText: segmentText,
-                translatedText: segmentTranslation || ""
-              };
-              
-              // Add to processing queue and emit event
-              this.audioQueue.push(segment);
-              this.emit("segmentCreated", segment);
-              
-              // Synthesize the translation
-              this.synthesizeSegment(segment);
-              
-              startIdx = endIdx;
-            }
-          } else {
-            // Standard processing for segments under the word limit
-            const segmentId = this.segmentCounter++;
-            const segment: AudioSegment = {
-              id: segmentId,
-              timestamp: Date.now(),
-              status: SegmentStatus.RECOGNIZING,
-              originalText: recognizedText,
-              translatedText: translation || ""
-            };
-            
-            this.audioQueue.push(segment);
-            this.emit("segmentCreated", segment);
-            this.synthesizeSegment(segment);
-          }
+          const segment: AudioSegment = {
+            id: segmentId,
+            timestamp: Date.now(),
+            status: SegmentStatus.RECOGNIZING,
+            originalText: event.result.text,
+            translatedText: translation || ""
+          };
+          
+          // Add to processing queue and emit event
+          this.audioQueue.push(segment);
+          this.emit("segmentCreated", segment);
+          
+          // Synthesize the translation
+          this.synthesizeSegment(segment);
         }
       };
 
