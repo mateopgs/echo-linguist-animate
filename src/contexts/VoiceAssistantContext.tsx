@@ -1,7 +1,7 @@
 import React, { createContext, useState, useContext, useEffect, useRef } from "react";
 import { azureSpeechService } from "../services/azureSpeechService";
 import { realTimeTranslationService, SegmentStatus, AudioSegment } from "../services/realTimeTranslationService";
-import { azureOpenAIService } from "../services/azureOpenAIService"; // Importamos el nuevo servicio
+import { azureOpenAIService } from "../services/azureOpenAIService";
 import { SupportedLanguages, TranscriptionResult, AssistantState, AzureConfig } from "../types/voice-assistant";
 import { useToast } from "../hooks/use-toast";
 
@@ -32,6 +32,7 @@ type VoiceAssistantContextType = {
   setCapturingWhileSpeaking: (enabled: boolean) => void;
   segmentInterval: number;
   setSegmentInterval: (ms: number) => void;
+  autoStartFromUrl: (params: URLSearchParams) => void;
 };
 
 const VoiceAssistantContext = createContext<VoiceAssistantContextType | null>(null);
@@ -60,9 +61,9 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
   const [activeSegments, setActiveSegments] = useState<AudioSegment[]>([]);
   const recognitionSessionRef = useRef<any>(null);
   const [isConfigured, setIsConfigured] = useState(false);
-  const [isRealTimeMode, setRealTimeMode] = useState(true); // Activamos el modo en tiempo real por defecto
+  const [isRealTimeMode, setRealTimeMode] = useState(true);
   const [isCapturingWhileSpeaking, setCapturingWhileSpeaking] = useState(true);
-  const [segmentInterval, setSegmentInterval] = useState(300); // Default to 0.3 seconds
+  const [segmentInterval, setSegmentInterval] = useState(300);
   const { toast } = useToast();
 
   // Monitorear cambios importantes con logs
@@ -403,6 +404,89 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
     setActiveSegments([]);
   };
 
+  // New function to handle URL parameters and auto-start
+  const autoStartFromUrl = (params: URLSearchParams) => {
+    console.log("Processing URL parameters:", params.toString());
+    
+    // Check and set source language if provided in URL
+    const speakIn = params.get("speakin");
+    if (speakIn) {
+      // Find if this is a valid language code
+      const validSourceLang = supportedLanguages.find(
+        lang => lang.code.toLowerCase() === speakIn.toLowerCase()
+      );
+      
+      if (validSourceLang) {
+        console.log(`Setting source language from URL to: ${validSourceLang.code}`);
+        setSourceLanguage(validSourceLang.code);
+      } else {
+        console.warn(`Invalid source language in URL: ${speakIn}`);
+        toast({
+          title: "Advertencia",
+          description: `Idioma de origen no válido: ${speakIn}`,
+          variant: "warning",
+        });
+      }
+    }
+    
+    // Check and set target language if provided in URL
+    const translateTo = params.get("translateto");
+    if (translateTo) {
+      // Find if this is a valid language code
+      const validTargetLang = supportedLanguages.find(
+        lang => lang.code.toLowerCase() === translateTo.toLowerCase()
+      );
+      
+      if (validTargetLang) {
+        console.log(`Setting target language from URL to: ${validTargetLang.code}`);
+        setTargetLanguage(validTargetLang.code);
+      } else {
+        console.warn(`Invalid target language in URL: ${translateTo}`);
+        toast({
+          title: "Advertencia",
+          description: `Idioma de destino no válido: ${translateTo}`,
+          variant: "warning",
+        });
+      }
+    }
+    
+    // Check and set segment interval if provided in URL
+    const ss = params.get("ss");
+    if (ss) {
+      try {
+        const ssValue = parseFloat(ss) * 1000; // Convert from seconds to milliseconds
+        if (!isNaN(ssValue) && ssValue >= 100 && ssValue <= 3000) {
+          console.log(`Setting segment interval from URL to: ${ssValue}ms`);
+          setSegmentInterval(ssValue);
+        } else {
+          console.warn(`Invalid segment interval in URL: ${ss}`);
+          toast({
+            title: "Advertencia",
+            description: `Intervalo de segmento no válido: ${ss}`,
+            variant: "warning",
+          });
+        }
+      } catch (error) {
+        console.error("Error parsing segment interval:", error);
+      }
+    }
+    
+    // Start listening automatically after a short delay to ensure settings are applied
+    setTimeout(() => {
+      if (isConfigured) {
+        console.log("Auto-starting translation from URL parameters");
+        startListening();
+      } else {
+        console.warn("Cannot auto-start: service not configured");
+        toast({
+          title: "Error",
+          description: "No se pudo iniciar automáticamente porque el servicio no está configurado",
+          variant: "destructive",
+        });
+      }
+    }, 1000);
+  };
+
   // Clean up resources when component unmounts
   useEffect(() => {
     return () => {
@@ -441,6 +525,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
         setCapturingWhileSpeaking,
         segmentInterval,
         setSegmentInterval,
+        autoStartFromUrl
       }}
     >
       {children}

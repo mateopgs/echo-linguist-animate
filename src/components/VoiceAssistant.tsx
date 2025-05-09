@@ -1,3 +1,4 @@
+
 import React, { useEffect } from "react";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
@@ -11,7 +12,8 @@ import ActiveSegmentsList from "./ActiveSegmentsList";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader as ConfigDialogHeader, DialogTitle as ConfigDialogTitle, DialogClose } from "./ui/dialog";
 import ConfigForm from "./ConfigForm";
 
-const VoiceAssistant: React.FC = () => {
+// New prop to accept URL parameters for auto-start
+const VoiceAssistant: React.FC<{ urlParams?: URLSearchParams }> = ({ urlParams }) => {
   const {
     state,
     sourceLanguage,
@@ -28,7 +30,8 @@ const VoiceAssistant: React.FC = () => {
     isCapturingWhileSpeaking,
     setCapturingWhileSpeaking,
     segmentInterval,
-    setSegmentInterval
+    setSegmentInterval,
+    autoStartFromUrl
   } = useVoiceAssistant();
 
   const handleToggleListen = () => {
@@ -45,7 +48,14 @@ const VoiceAssistant: React.FC = () => {
     return language ? language.name : code;
   };
 
-  // Agregamos logs para depuración
+  // Process URL parameters for auto-start if provided
+  useEffect(() => {
+    if (urlParams && supportedLanguages.length > 0) {
+      autoStartFromUrl(urlParams);
+    }
+  }, [urlParams, supportedLanguages, autoStartFromUrl]);
+
+  // Log for debugging
   useEffect(() => {
     console.log("Current state:", state);
     console.log("Active segments:", activeSegments);
@@ -124,8 +134,6 @@ const VoiceAssistant: React.FC = () => {
             {state === AssistantState.ERROR && "Error occurred"}
           </div>
         </div>
-
-        {/* TranscriptionDisplay removed to reserve space for dynamic segments */}
 
         {isRealTimeMode && (
           <ActiveSegmentsList

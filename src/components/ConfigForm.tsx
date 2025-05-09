@@ -1,8 +1,13 @@
-import React, { useState } from "react";
+
+import React, { useState, useEffect } from "react";
 import { Switch } from "./ui/switch";
 import { Label } from "./ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { useVoiceAssistant } from "../contexts/VoiceAssistantContext";
+import { Input } from "./ui/input";
+import { Button } from "./ui/button";
+import { Copy, Share2 } from "lucide-react";
+import { useToast } from "../hooks/use-toast";
 
 const ConfigForm: React.FC = () => {
   const {
@@ -11,11 +16,51 @@ const ConfigForm: React.FC = () => {
     isCapturingWhileSpeaking,
     setCapturingWhileSpeaking,
     segmentInterval,
-    setSegmentInterval
+    setSegmentInterval,
+    sourceLanguage,
+    targetLanguage
   } = useVoiceAssistant();
+
+  const [shareUrl, setShareUrl] = useState("");
+  const { toast } = useToast();
+
+  useEffect(() => {
+    // Generate a shareable URL with current settings
+    const baseUrl = window.location.origin + window.location.pathname;
+    const sourceLang = sourceLanguage.split('-')[0].toLowerCase();
+    const targetLang = targetLanguage.split('-')[0].toLowerCase();
+    const segmentSec = (segmentInterval / 1000).toFixed(1);
+    
+    const url = `${baseUrl}?speakin=${sourceLang}&translateto=${targetLang}&ss=${segmentSec}`;
+    setShareUrl(url);
+  }, [sourceLanguage, targetLanguage, segmentInterval]);
 
   const handleIntervalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSegmentInterval(parseInt(e.target.value));
+  };
+
+  const copyShareUrl = () => {
+    navigator.clipboard.writeText(shareUrl);
+    toast({
+      title: "URL copiada",
+      description: "Enlace de configuración copiado al portapapeles",
+    });
+  };
+
+  const shareConfig = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Traduce AI - Configuración',
+          text: 'Usa este enlace para iniciar Traduce AI con mi configuración:',
+          url: shareUrl,
+        });
+      } catch (err) {
+        console.error('Error al compartir:', err);
+      }
+    } else {
+      copyShareUrl();
+    }
   };
 
   return (
@@ -41,6 +86,25 @@ const ConfigForm: React.FC = () => {
             onChange={handleIntervalChange}
             className="w-3/4"
           />
+        </div>
+
+        {/* New section for sharing configuration */}
+        <div className="flex flex-col items-center justify-center space-y-3 w-full border-t pt-4">
+          <Label className="text-center">Share this configuration</Label>
+          <p className="text-xs text-center text-muted-foreground">
+            This URL will auto-start translation with your current settings
+          </p>
+          <div className="flex items-center w-full">
+            <Input value={shareUrl} readOnly className="text-xs" />
+            <Button variant="outline" size="icon" className="ml-2" onClick={copyShareUrl}>
+              <Copy size={16} />
+            </Button>
+            {navigator.share && (
+              <Button variant="outline" size="icon" className="ml-2" onClick={shareConfig}>
+                <Share2 size={16} />
+              </Button>
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>
