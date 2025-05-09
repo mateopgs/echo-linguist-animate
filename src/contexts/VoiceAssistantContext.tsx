@@ -1,7 +1,7 @@
 import React, { createContext, useState, useContext, useEffect, useRef } from "react";
 import { azureSpeechService } from "../services/azureSpeechService";
 import { realTimeTranslationService, SegmentStatus, AudioSegment } from "../services/realTimeTranslationService";
-import { azureOpenAIService } from "../services/azureOpenAIService";
+import { azureOpenAIService } from "../services/azureOpenAIService"; // Importamos el nuevo servicio
 import { SupportedLanguages, TranscriptionResult, AssistantState, AzureConfig } from "../types/voice-assistant";
 import { useToast } from "../hooks/use-toast";
 
@@ -32,7 +32,6 @@ type VoiceAssistantContextType = {
   setCapturingWhileSpeaking: (enabled: boolean) => void;
   segmentInterval: number;
   setSegmentInterval: (ms: number) => void;
-  autoStartFromUrl: (params: URLSearchParams) => void;
 };
 
 const VoiceAssistantContext = createContext<VoiceAssistantContextType | null>(null);
@@ -61,9 +60,9 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
   const [activeSegments, setActiveSegments] = useState<AudioSegment[]>([]);
   const recognitionSessionRef = useRef<any>(null);
   const [isConfigured, setIsConfigured] = useState(false);
-  const [isRealTimeMode, setRealTimeMode] = useState(true);
+  const [isRealTimeMode, setRealTimeMode] = useState(true); // Activamos el modo en tiempo real por defecto
   const [isCapturingWhileSpeaking, setCapturingWhileSpeaking] = useState(true);
-  const [segmentInterval, setSegmentInterval] = useState(300);
+  const [segmentInterval, setSegmentInterval] = useState(300); // Default to 0.3 seconds
   const { toast } = useToast();
 
   // Monitorear cambios importantes con logs
@@ -404,112 +403,6 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
     setActiveSegments([]);
   };
 
-  // Function to find a language by code, with fallback to partial matches
-  const findLanguageByCode = (code: string, languages: SupportedLanguages[]): SupportedLanguages | undefined => {
-    // Try direct match first
-    let lang = languages.find(l => l.code.toLowerCase() === code.toLowerCase());
-    
-    if (!lang) {
-      // Try to match just the language part (e.g., "es" instead of "es-ES")
-      const mainLangCode = code.split('-')[0].toLowerCase();
-      lang = languages.find(l => l.code.toLowerCase().startsWith(mainLangCode + '-'));
-    }
-    
-    return lang;
-  };
-
-  // Función mejorada para manejar parámetros URL y auto-inicio
-  const autoStartFromUrl = (params: URLSearchParams) => {
-    console.log("Processing URL parameters:", params.toString());
-    
-    let shouldAutoStart = false;
-    
-    // Check and set source language if provided in URL
-    const speakIn = params.get("speakin");
-    if (speakIn) {
-      // Find if this is a valid language code with more flexible matching
-      const validSourceLang = findLanguageByCode(speakIn, supportedLanguages);
-      
-      if (validSourceLang) {
-        console.log(`Setting source language from URL to: ${validSourceLang.code}`);
-        setSourceLanguage(validSourceLang.code);
-        shouldAutoStart = true;
-      } else {
-        console.warn(`Invalid source language in URL: ${speakIn}`);
-        toast({
-          title: "Advertencia",
-          description: `Idioma de origen no válido: ${speakIn}`,
-          variant: "default",
-        });
-      }
-    }
-    
-    // Check and set target language if provided in URL
-    const translateTo = params.get("translateto");
-    if (translateTo) {
-      // Find if this is a valid language code with more flexible matching
-      const validTargetLang = findLanguageByCode(translateTo, supportedLanguages);
-      
-      if (validTargetLang) {
-        console.log(`Setting target language from URL to: ${validTargetLang.code}`);
-        setTargetLanguage(validTargetLang.code);
-        shouldAutoStart = true;
-      } else {
-        console.warn(`Invalid target language in URL: ${translateTo}`);
-        toast({
-          title: "Advertencia",
-          description: `Idioma de destino no válido: ${translateTo}`,
-          variant: "default",
-        });
-      }
-    }
-    
-    // Check and set segment interval if provided in URL
-    const ss = params.get("ss");
-    if (ss) {
-      try {
-        const ssValue = parseFloat(ss) * 1000; // Convert from seconds to milliseconds
-        if (!isNaN(ssValue) && ssValue >= 100 && ssValue <= 3000) {
-          console.log(`Setting segment interval from URL to: ${ssValue}ms`);
-          setSegmentInterval(ssValue);
-          shouldAutoStart = true;
-        } else {
-          console.warn(`Invalid segment interval in URL: ${ss}`);
-          toast({
-            title: "Advertencia",
-            description: `Intervalo de segmento no válido: ${ss}`,
-            variant: "default",
-          });
-        }
-      } catch (error) {
-        console.error("Error parsing segment interval:", error);
-      }
-    }
-    
-    // Start listening automatically after a short delay to ensure settings are applied
-    // Solo iniciar si al menos un parámetro válido fue encontrado
-    if (shouldAutoStart) {
-      setTimeout(() => {
-        if (isConfigured) {
-          console.log("Auto-starting translation from URL parameters");
-          startListening();
-          toast({
-            title: "Auto-inicio",
-            description: "Traducción iniciada automáticamente",
-            variant: "default",
-          });
-        } else {
-          console.warn("Cannot auto-start: service not configured");
-          toast({
-            title: "Error",
-            description: "No se pudo iniciar automáticamente porque el servicio no está configurado",
-            variant: "destructive",
-          });
-        }
-      }, 1500); // Dar más tiempo (1.5s) para que todo se inicialice correctamente
-    }
-  };
-
   // Clean up resources when component unmounts
   useEffect(() => {
     return () => {
@@ -548,7 +441,6 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
         setCapturingWhileSpeaking,
         segmentInterval,
         setSegmentInterval,
-        autoStartFromUrl
       }}
     >
       {children}

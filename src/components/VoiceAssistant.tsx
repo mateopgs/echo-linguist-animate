@@ -1,4 +1,3 @@
-
 import React, { useEffect } from "react";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
@@ -12,8 +11,7 @@ import ActiveSegmentsList from "./ActiveSegmentsList";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader as ConfigDialogHeader, DialogTitle as ConfigDialogTitle, DialogClose } from "./ui/dialog";
 import ConfigForm from "./ConfigForm";
 
-// New prop to accept URL parameters for auto-start
-const VoiceAssistant: React.FC<{ urlParams?: URLSearchParams }> = ({ urlParams }) => {
+const VoiceAssistant: React.FC = () => {
   const {
     state,
     sourceLanguage,
@@ -30,8 +28,7 @@ const VoiceAssistant: React.FC<{ urlParams?: URLSearchParams }> = ({ urlParams }
     isCapturingWhileSpeaking,
     setCapturingWhileSpeaking,
     segmentInterval,
-    setSegmentInterval,
-    autoStartFromUrl
+    setSegmentInterval
   } = useVoiceAssistant();
 
   const handleToggleListen = () => {
@@ -48,17 +45,7 @@ const VoiceAssistant: React.FC<{ urlParams?: URLSearchParams }> = ({ urlParams }
     return language ? language.name : code;
   };
 
-  // Process URL parameters for auto-start if provided
-  useEffect(() => {
-    if (urlParams && supportedLanguages.length > 0) {
-      console.log("Iniciando con parámetros URL:", urlParams.toString());
-      setTimeout(() => {
-        autoStartFromUrl(urlParams);
-      }, 500); // Dar tiempo para que los idiomas se carguen correctamente
-    }
-  }, [urlParams, supportedLanguages, autoStartFromUrl]);
-
-  // Log for debugging
+  // Agregamos logs para depuración
   useEffect(() => {
     console.log("Current state:", state);
     console.log("Active segments:", activeSegments);
@@ -137,6 +124,8 @@ const VoiceAssistant: React.FC<{ urlParams?: URLSearchParams }> = ({ urlParams }
             {state === AssistantState.ERROR && "Error occurred"}
           </div>
         </div>
+
+        {/* TranscriptionDisplay removed to reserve space for dynamic segments */}
 
         {isRealTimeMode && (
           <ActiveSegmentsList
