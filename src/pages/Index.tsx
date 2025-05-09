@@ -4,7 +4,7 @@ import { VoiceAssistantProvider } from "../contexts/VoiceAssistantContext";
 import VoiceAssistant from "../components/VoiceAssistant";
 import { useToast } from "../hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
-import { InfoCircle } from "lucide-react";
+import { Info } from "lucide-react";
 
 const Index = () => {
   const [urlParams, setUrlParams] = useState<URLSearchParams | undefined>(undefined);
@@ -37,7 +37,7 @@ const Index = () => {
       {showGuide && (
         <div className="w-full max-w-4xl mb-4">
           <Alert variant="default" className="bg-blue-50 border-blue-200">
-            <InfoCircle className="h-4 w-4" />
+            <Info className="h-4 w-4" />
             <AlertTitle>Inicio automático</AlertTitle>
             <AlertDescription>
               La traducción se iniciará automáticamente con los parámetros detectados.
