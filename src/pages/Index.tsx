@@ -14,6 +14,7 @@ const Index = () => {
     console.log("URL parameters detected:", params.toString());
     
     // Only set parameters if at least one valid parameter exists
+    // Check for all supported parameters
     if (params.has('speakin') || params.has('translateto') || params.has('ss')) {
       setUrlParams(params);
       

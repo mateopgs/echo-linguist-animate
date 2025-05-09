@@ -404,6 +404,20 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
     setActiveSegments([]);
   };
 
+  // Function to find a language by code, with fallback to partial matches
+  const findLanguageByCode = (code: string, languages: SupportedLanguages[]): SupportedLanguages | undefined => {
+    // Try direct match first
+    let lang = languages.find(l => l.code.toLowerCase() === code.toLowerCase());
+    
+    if (!lang) {
+      // Try to match just the language part (e.g., "es" instead of "es-ES")
+      const mainLangCode = code.split('-')[0].toLowerCase();
+      lang = languages.find(l => l.code.toLowerCase().startsWith(mainLangCode + '-'));
+    }
+    
+    return lang;
+  };
+
   // New function to handle URL parameters and auto-start
   const autoStartFromUrl = (params: URLSearchParams) => {
     console.log("Processing URL parameters:", params.toString());
@@ -411,10 +425,8 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
     // Check and set source language if provided in URL
     const speakIn = params.get("speakin");
     if (speakIn) {
-      // Find if this is a valid language code
-      const validSourceLang = supportedLanguages.find(
-        lang => lang.code.toLowerCase() === speakIn.toLowerCase()
-      );
+      // Find if this is a valid language code with more flexible matching
+      const validSourceLang = findLanguageByCode(speakIn, supportedLanguages);
       
       if (validSourceLang) {
         console.log(`Setting source language from URL to: ${validSourceLang.code}`);
@@ -432,10 +444,8 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
     // Check and set target language if provided in URL
     const translateTo = params.get("translateto");
     if (translateTo) {
-      // Find if this is a valid language code
-      const validTargetLang = supportedLanguages.find(
-        lang => lang.code.toLowerCase() === translateTo.toLowerCase()
-      );
+      // Find if this is a valid language code with more flexible matching
+      const validTargetLang = findLanguageByCode(translateTo, supportedLanguages);
       
       if (validTargetLang) {
         console.log(`Setting target language from URL to: ${validTargetLang.code}`);
