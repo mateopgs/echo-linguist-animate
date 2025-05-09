@@ -424,7 +424,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
         toast({
           title: "Advertencia",
           description: `Idioma de origen no válido: ${speakIn}`,
-          variant: "warning",
+          variant: "default",
         });
       }
     }
@@ -445,7 +445,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
         toast({
           title: "Advertencia",
           description: `Idioma de destino no válido: ${translateTo}`,
-          variant: "warning",
+          variant: "default",
         });
       }
     }
@@ -463,7 +463,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
           toast({
             title: "Advertencia",
             description: `Intervalo de segmento no válido: ${ss}`,
-            variant: "warning",
+            variant: "default",
           });
         }
       } catch (error) {
