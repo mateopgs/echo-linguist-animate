@@ -1,3 +1,4 @@
+
 import * as sdk from "microsoft-cognitiveservices-speech-sdk";
 import { AzureConfig, SupportedLanguages } from "../types/voice-assistant";
 
@@ -65,6 +66,16 @@ class AzureSpeechService {
       );
       translationConfig.speechRecognitionLanguage = fromLanguage;
       translationConfig.addTargetLanguage(toLanguage.split('-')[0]); // "es-ES" -> "es"
+      
+      // Reducir tiempos de espera para mayor rapidez
+      translationConfig.setProperty(
+        sdk.PropertyId.SpeechServiceConnection_InitialSilenceTimeoutMs,
+        "5000"
+      );
+      translationConfig.setProperty(
+        sdk.PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs,
+        "500"
+      );
 
       // Setup audio config for microphone
       const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
@@ -115,6 +126,10 @@ class AzureSpeechService {
         this.config.region
       );
       speechConfig.speechSynthesisLanguage = language;
+      
+      // Optimizar configuración para síntesis más rápida
+      speechConfig.setProperty(sdk.PropertyId.SpeechServiceConnection_SynthesizeToAudioBufferMaxLatencyMs, "100");
+      speechConfig.setProperty(sdk.PropertyId.SpeechServiceConnection_SynthOutputFormat, "audio-16khz-32kbitrate-mono-mp3");
 
       // Create pull stream to prevent automatic playback
       const pullAudioOutputStream = sdk.AudioOutputStream.createPullStream();
@@ -155,6 +170,10 @@ class AzureSpeechService {
       
       this.sourceNode = this.audioContext.createBufferSource();
       this.sourceNode.buffer = audioBuffer;
+      
+      // Aumentar la velocidad de reproducción
+      this.sourceNode.playbackRate.value = 1.1; // 10% más rápido
+      
       this.sourceNode.connect(this.audioContext.destination);
       
       return new Promise((resolve) => {

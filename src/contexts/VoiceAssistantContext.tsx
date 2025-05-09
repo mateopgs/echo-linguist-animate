@@ -1,7 +1,7 @@
+
 import React, { createContext, useState, useContext, useEffect, useRef } from "react";
 import { azureSpeechService } from "../services/azureSpeechService";
 import { realTimeTranslationService, SegmentStatus, AudioSegment } from "../services/realTimeTranslationService";
-import { azureOpenAIService } from "../services/azureOpenAIService"; // Importamos el nuevo servicio
 import { SupportedLanguages, TranscriptionResult, AssistantState, AzureConfig } from "../types/voice-assistant";
 import { useToast } from "../hooks/use-toast";
 
@@ -62,7 +62,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
   const [isConfigured, setIsConfigured] = useState(false);
   const [isRealTimeMode, setRealTimeMode] = useState(true); // Activamos el modo en tiempo real por defecto
   const [isCapturingWhileSpeaking, setCapturingWhileSpeaking] = useState(true);
-  const [segmentInterval, setSegmentInterval] = useState(300); // Default to 0.3 seconds
+  const [segmentInterval, setSegmentInterval] = useState(200); // Reducido a 200ms por defecto para mayor rapidez
   const { toast } = useToast();
 
   // Monitorear cambios importantes con logs
@@ -90,10 +90,10 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
       setActiveSegments(prev => 
         prev.filter(segment => 
           segment.status !== SegmentStatus.COMPLETED && 
-          Date.now() - segment.timestamp < 60000
+          Date.now() - segment.timestamp < 30000 // Reducido a 30 segundos para limpiar más rápido
         )
       );
-    }, 10000);
+    }, 5000); // Aumentar frecuencia de limpieza
     
     return () => clearInterval(cleanupInterval);
   }, []);
@@ -287,19 +287,10 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
           
           setState(AssistantState.PROCESSING);
           
-          // NUEVO: Mejorar la traducción con Azure OpenAI antes de procesarla
-          console.log("Mejorando traducción con Azure OpenAI");
-          const improvedTranslation = await azureOpenAIService.improveTranslation(
-            originalText,
-            translatedText,
-            sourceLanguage,
-            targetLanguage
-          );
-          console.log("Traducción mejorada:", improvedTranslation);
-          
+          // Usamos directamente la traducción sin mejoras de LLM
           const result: TranscriptionResult = {
             originalText,
-            translatedText: improvedTranslation, // Usar la traducción mejorada
+            translatedText,
             fromLanguage: sourceLanguage,
             toLanguage: targetLanguage,
             timestamp: new Date(),
@@ -307,7 +298,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
 
           setCurrentTranscription({
             originalText,
-            translatedText: improvedTranslation, // Usar la traducción mejorada
+            translatedText,
           });
 
           setTranscriptionHistory((prev) => [...prev, result]);
@@ -315,9 +306,9 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
           // Speak the translated text
           setState(AssistantState.SPEAKING);
           try {
-            console.log("Synthesizing speech for:", improvedTranslation); // Usar la traducción mejorada
+            console.log("Synthesizing speech for:", translatedText);
             const audioBuffer = await azureSpeechService.synthesizeSpeech(
-              improvedTranslation, // Usar la traducción mejorada
+              translatedText,
               targetLanguage
             );
             console.log("Audio synthesized, playing...");

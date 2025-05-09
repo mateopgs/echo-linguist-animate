@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { Switch } from "./ui/switch";
 import { Label } from "./ui/label";
@@ -34,13 +35,14 @@ const ConfigForm: React.FC = () => {
           <input
             type="range"
             id="segment-interval"
-            min="100"
-            max="3000"
-            step="100"
+            min="50"
+            max="1000"
+            step="50"
             value={segmentInterval}
             onChange={handleIntervalChange}
             className="w-3/4"
           />
+          <span className="text-xs text-gray-500">Shorter = faster response, may cause more errors</span>
         </div>
       </CardContent>
     </Card>

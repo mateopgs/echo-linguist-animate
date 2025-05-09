@@ -1,7 +1,7 @@
+
 import * as sdk from "microsoft-cognitiveservices-speech-sdk";
 import { AzureConfig } from "../types/voice-assistant";
 import { EventEmitter } from "../utils/eventEmitter";
-import { azureOpenAIService } from "./azureOpenAIService";
 
 // Segment processing states and events
 export enum SegmentStatus {
@@ -112,16 +112,15 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
       translationConfig.addTargetLanguage(this.targetLanguage.split('-')[0]);
 
       // Configure for continuous recognition with segmentation
-      // Tune silence detection to improve utterance capture
+      // Reducir tiempos de espera para mayor rapidez
       translationConfig.setProperty(
         sdk.PropertyId.SpeechServiceConnection_InitialSilenceTimeoutMs,
-        "10000" // wait up to 10s for initial speech
+        "5000" // reducido de 10000 a 5000ms
       );
       translationConfig.setProperty(
         sdk.PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs,
-        this.segmentInterval.toString() // use configured segment interval for end silence
+        "500" // reducido para respuesta más rápida
       );
-      // Remove explicit segmentation override (Speech_SegmentationSilenceTimeoutMs)
       
       // Setup audio config for microphone
       const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
@@ -173,7 +172,7 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
           const segment: AudioSegment = {
             id: segmentId,
             timestamp: Date.now(),
-            status: SegmentStatus.RECOGNIZING,
+            status: SegmentStatus.TRANSLATING,
             originalText: event.result.text,
             translatedText: translation || ""
           };
@@ -182,7 +181,7 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
           this.audioQueue.push(segment);
           this.emit("segmentCreated", segment);
           
-          // Synthesize the translation
+          // Synthesize the translation immediately without LLM improvement
           this.synthesizeSegment(segment);
         }
       };
@@ -262,6 +261,7 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
       clearInterval(this.captureTimer);
     }
     
+    // Reducir el intervalo para una segmentación más frecuente
     this.captureTimer = setInterval(() => {
       if (this.currentlyPlaying && this.isCapturingWhileSpeaking && this.translationRecognizer) {
         console.log("Forcing segment creation while speaking");
@@ -285,7 +285,7 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
           this.translationRecognizer.recognized = tempHandler;
         }
       }
-    }, this.segmentInterval);
+    }, Math.min(this.segmentInterval, 200)); // Usar un valor más bajo para mayor responsividad
   }
   
   // Stop the periodic segmentation timer
@@ -296,7 +296,7 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
     }
   }
 
-  // Process the segment through the TTS pipeline
+  // Process the segment through the TTS pipeline - Eliminada la mejora con LLM
   private async synthesizeSegment(segment: AudioSegment): Promise<void> {
     if (!this.config || !segment.translatedText) {
       console.error("Cannot synthesize - missing config or translated text");
@@ -308,28 +308,18 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
       this.emit("segmentUpdated", segment);
       console.log(`Synthesizing segment ${segment.id}: "${segment.translatedText}"`);
       
-      // NUEVO: Mejorar la traducción con Azure OpenAI antes de sintetizar
-      if (segment.originalText && segment.translatedText) {
-        console.log(`Enviando a mejorar traducción para segmento ${segment.id}`);
-        const improvedTranslation = await azureOpenAIService.improveTranslation(
-          segment.originalText,
-          segment.translatedText,
-          this.sourceLanguage,
-          this.targetLanguage
-        );
-        
-        // Actualizar la traducción mejorada
-        segment.translatedText = improvedTranslation;
-        this.emit("segmentUpdated", segment);
-        console.log(`Traducción mejorada para segmento ${segment.id}: "${improvedTranslation}"`);
-      }
-      
+      // Pasamos directamente a la síntesis sin mejoras de LLM
       // Configure speech synthesizer
       const speechConfig = sdk.SpeechConfig.fromSubscription(
         this.config.key,
         this.config.region
       );
       speechConfig.speechSynthesisLanguage = this.targetLanguage;
+      
+      // Optimizar la configuración para síntesis más rápida
+      speechConfig.setProperty(sdk.PropertyId.SpeechServiceConnection_SynthesizeToAudioBufferMaxLatencyMs, "100");
+      speechConfig.setProperty(sdk.PropertyId.SpeechServiceConnection_SynthOutputFormat, "audio-16khz-32kbitrate-mono-mp3");
+      
       // Use pull stream so SDK does not auto-play audio
       const pullStream = sdk.AudioOutputStream.createPullStream();
       const audioConfig = sdk.AudioConfig.fromStreamOutput(pullStream);
@@ -414,7 +404,7 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
       
       // Check for more segments to play
       console.log("Checking for more segments to play");
-      setTimeout(() => this.playNextInQueue(), 10);
+      setTimeout(() => this.playNextInQueue(), 10); // Reducido de 10ms para respuesta más rápida
     }
   }
 
@@ -431,6 +421,10 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
       
       const sourceNode = this.audioContext.createBufferSource();
       sourceNode.buffer = audioBuffer;
+      
+      // Aumentar la velocidad de reproducción para una experiencia más rápida
+      sourceNode.playbackRate.value = 1.1; // 10% más rápido
+      
       sourceNode.connect(this.audioContext.destination);
       
       return new Promise<void>((resolve) => {
@@ -473,3 +467,4 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
 }
 
 export const realTimeTranslationService = new RealTimeTranslationService();
+
