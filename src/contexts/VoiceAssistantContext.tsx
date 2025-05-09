@@ -418,9 +418,11 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
     return lang;
   };
 
-  // New function to handle URL parameters and auto-start
+  // Función mejorada para manejar parámetros URL y auto-inicio
   const autoStartFromUrl = (params: URLSearchParams) => {
     console.log("Processing URL parameters:", params.toString());
+    
+    let shouldAutoStart = false;
     
     // Check and set source language if provided in URL
     const speakIn = params.get("speakin");
@@ -431,6 +433,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
       if (validSourceLang) {
         console.log(`Setting source language from URL to: ${validSourceLang.code}`);
         setSourceLanguage(validSourceLang.code);
+        shouldAutoStart = true;
       } else {
         console.warn(`Invalid source language in URL: ${speakIn}`);
         toast({
@@ -450,6 +453,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
       if (validTargetLang) {
         console.log(`Setting target language from URL to: ${validTargetLang.code}`);
         setTargetLanguage(validTargetLang.code);
+        shouldAutoStart = true;
       } else {
         console.warn(`Invalid target language in URL: ${translateTo}`);
         toast({
@@ -468,6 +472,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
         if (!isNaN(ssValue) && ssValue >= 100 && ssValue <= 3000) {
           console.log(`Setting segment interval from URL to: ${ssValue}ms`);
           setSegmentInterval(ssValue);
+          shouldAutoStart = true;
         } else {
           console.warn(`Invalid segment interval in URL: ${ss}`);
           toast({
@@ -482,19 +487,27 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
     }
     
     // Start listening automatically after a short delay to ensure settings are applied
-    setTimeout(() => {
-      if (isConfigured) {
-        console.log("Auto-starting translation from URL parameters");
-        startListening();
-      } else {
-        console.warn("Cannot auto-start: service not configured");
-        toast({
-          title: "Error",
-          description: "No se pudo iniciar automáticamente porque el servicio no está configurado",
-          variant: "destructive",
-        });
-      }
-    }, 1000);
+    // Solo iniciar si al menos un parámetro válido fue encontrado
+    if (shouldAutoStart) {
+      setTimeout(() => {
+        if (isConfigured) {
+          console.log("Auto-starting translation from URL parameters");
+          startListening();
+          toast({
+            title: "Auto-inicio",
+            description: "Traducción iniciada automáticamente",
+            variant: "default",
+          });
+        } else {
+          console.warn("Cannot auto-start: service not configured");
+          toast({
+            title: "Error",
+            description: "No se pudo iniciar automáticamente porque el servicio no está configurado",
+            variant: "destructive",
+          });
+        }
+      }, 1500); // Dar más tiempo (1.5s) para que todo se inicialice correctamente
+    }
   };
 
   // Clean up resources when component unmounts

@@ -51,7 +51,10 @@ const VoiceAssistant: React.FC<{ urlParams?: URLSearchParams }> = ({ urlParams }
   // Process URL parameters for auto-start if provided
   useEffect(() => {
     if (urlParams && supportedLanguages.length > 0) {
-      autoStartFromUrl(urlParams);
+      console.log("Iniciando con parámetros URL:", urlParams.toString());
+      setTimeout(() => {
+        autoStartFromUrl(urlParams);
+      }, 500); // Dar tiempo para que los idiomas se carguen correctamente
     }
   }, [urlParams, supportedLanguages, autoStartFromUrl]);
 
