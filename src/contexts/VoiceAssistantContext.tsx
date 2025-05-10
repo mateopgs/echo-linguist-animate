@@ -32,8 +32,6 @@ type VoiceAssistantContextType = {
   setCapturingWhileSpeaking: (enabled: boolean) => void;
   segmentInterval: number;
   setSegmentInterval: (ms: number) => void;
-  wordCountThreshold: number;
-  setWordCountThreshold: (count: number) => void;
 };
 
 const VoiceAssistantContext = createContext<VoiceAssistantContextType | null>(null);
@@ -65,7 +63,6 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
   const [isRealTimeMode, setRealTimeMode] = useState(true); // Activamos el modo en tiempo real por defecto
   const [isCapturingWhileSpeaking, setCapturingWhileSpeaking] = useState(true);
   const [segmentInterval, setSegmentInterval] = useState(200); // Reducido a 200ms por defecto para mayor rapidez
-  const [wordCountThreshold, setWordCountThreshold] = useState(10);
   const { toast } = useToast();
 
   // Monitorear cambios importantes con logs
@@ -86,18 +83,6 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
     console.log("Setting segment interval to:", segmentInterval);
     realTimeTranslationService.setSegmentDuration(segmentInterval);
   }, [segmentInterval]);
-
-  // Access and set wordCountThreshold directly from the realTimeTranslationService
-  useEffect(() => {
-    if (realTimeTranslationService) {
-      // This should update when the service is properly exposed
-      // For now, we'll update this in the next PR
-      console.log("Setting word count threshold to:", wordCountThreshold);
-      if (realTimeTranslationService.wordCountThreshold !== undefined) {
-        realTimeTranslationService.wordCountThreshold = wordCountThreshold;
-      }
-    }
-  }, [wordCountThreshold]);
 
   // Clean up active segments periodically
   useEffect(() => {
@@ -447,8 +432,6 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
         setCapturingWhileSpeaking,
         segmentInterval,
         setSegmentInterval,
-        wordCountThreshold,
-        setWordCountThreshold,
       }}
     >
       {children}

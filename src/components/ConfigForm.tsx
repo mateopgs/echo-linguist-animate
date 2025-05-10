@@ -1,105 +1,51 @@
 
-import React from "react";
-import { Button } from "./ui/button";
-import { Input } from "./ui/input";
-import { Label } from "./ui/label";
-import { Slider } from "./ui/slider";
+import React, { useState } from "react";
 import { Switch } from "./ui/switch";
+import { Label } from "./ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { useVoiceAssistant } from "../contexts/VoiceAssistantContext";
 
 const ConfigForm: React.FC = () => {
   const {
-    apiKey,
-    region,
-    setApiKey,
-    setRegion,
     isRealTimeMode,
     setRealTimeMode,
     isCapturingWhileSpeaking,
     setCapturingWhileSpeaking,
     segmentInterval,
-    setSegmentInterval,
-    wordCountThreshold,
-    setWordCountThreshold,
+    setSegmentInterval
   } = useVoiceAssistant();
 
+  const handleIntervalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSegmentInterval(parseInt(e.target.value));
+  };
+
   return (
-    <div className="space-y-6">
-      <div className="space-y-2">
-        <Label htmlFor="apiKey">API Key</Label>
-        <Input
-          id="apiKey"
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          placeholder="Enter your Azure Speech API key"
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="region">Region</Label>
-        <Input
-          id="region"
-          value={region}
-          onChange={(e) => setRegion(e.target.value)}
-          placeholder="e.g. eastus"
-        />
-      </div>
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label htmlFor="realtime-toggle">Real-time mode</Label>
-          <Switch
-            id="realtime-toggle"
-            checked={isRealTimeMode}
-            onCheckedChange={setRealTimeMode}
-          />
+    <Card className="w-full max-w-md mx-auto">
+      <CardContent className="flex flex-col items-center justify-center py-6 space-y-6">
+        <div className="flex items-center justify-center space-x-2">
+          <Switch id="real-time-mode" checked={isRealTimeMode} onCheckedChange={setRealTimeMode} />
+          <Label htmlFor="real-time-mode">Real-time translation mode</Label>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Enables continuous translation without waiting for pauses
-        </p>
-      </div>
-      {isRealTimeMode && (
-        <>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="capturing-toggle">Capture while speaking</Label>
-              <Switch
-                id="capturing-toggle"
-                checked={isCapturingWhileSpeaking}
-                onCheckedChange={setCapturingWhileSpeaking}
-              />
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Continue capturing speech while playing back translations
-            </p>
-          </div>
-          <div className="space-y-2">
-            <Label>Segment interval: {segmentInterval}ms</Label>
-            <Slider
-              value={[segmentInterval]}
-              min={100}
-              max={5000}
-              step={100}
-              onValueChange={(values) => setSegmentInterval(values[0])}
-            />
-            <p className="text-xs text-muted-foreground">
-              Time between forced segment breaks (lower = more responsive)
-            </p>
-          </div>
-          <div className="space-y-2">
-            <Label>Word threshold: {wordCountThreshold} words</Label>
-            <Slider
-              value={[wordCountThreshold]}
-              min={5}
-              max={20}
-              step={1}
-              onValueChange={(values) => setWordCountThreshold(values[0])}
-            />
-            <p className="text-xs text-muted-foreground">
-              Number of words before starting early translation
-            </p>
-          </div>
-        </>
-      )}
-    </div>
+        <div className="flex items-center justify-center space-x-2">
+          <Switch id="simultaneous-capture" checked={isCapturingWhileSpeaking} onCheckedChange={setCapturingWhileSpeaking} />
+          <Label htmlFor="simultaneous-capture">Capture audio while speaking (overlap)</Label>
+        </div>
+        <div className="flex flex-col items-center justify-center space-y-1 w-full">
+          <Label htmlFor="segment-interval">Segment interval: {segmentInterval / 1000} seconds</Label>
+          <input
+            type="range"
+            id="segment-interval"
+            min="50"
+            max="1000"
+            step="50"
+            value={segmentInterval}
+            onChange={handleIntervalChange}
+            className="w-3/4"
+          />
+          <span className="text-xs text-gray-500">Shorter = faster response, may cause more errors</span>
+        </div>
+      </CardContent>
+    </Card>
   );
 };
 
