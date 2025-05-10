@@ -215,7 +215,7 @@ class RealTimeTranslationService extends EventEmitter {
           return new Promise<void>((resolve, reject) => {
             translator.recognizeOnceAsync(
               segment.originalText!,
-              (result: sdk.TranslationRecognitionResult) => {
+              (result) => {
                 if (result.reason === sdk.ResultReason.TranslatedSpeech) {
                   segment.translatedText = result.translations.get(targetLangCode) || "";
                   segment.status = SegmentStatus.SYNTHESIZING;
@@ -225,7 +225,7 @@ class RealTimeTranslationService extends EventEmitter {
                   if (this.synthesizer) {
                     this.synthesizer.speakTextAsync(
                       segment.translatedText,
-                      (result: sdk.SpeechSynthesisResult) => {
+                      (result) => {
                         if (result.reason === sdk.ResultReason.SynthesizingAudioCompleted) {
                           segment.audioBuffer = result.audioData;
                           segment.status = SegmentStatus.PLAYING;
@@ -271,6 +271,7 @@ class RealTimeTranslationService extends EventEmitter {
                                 segment.status = SegmentStatus.ERROR;
                                 segment.error = error instanceof Error ? error : new Error(String(error));
                                 this.emit("segmentUpdated", segment);
+                                // Fix: Updated to emit segmentError with the correct object structure
                                 this.emit("segmentError", { segment, error: segment.error });
                                 resolve();
                               });
@@ -280,6 +281,7 @@ class RealTimeTranslationService extends EventEmitter {
                             segment.status = SegmentStatus.ERROR;
                             segment.error = error instanceof Error ? error : new Error(String(error));
                             this.emit("segmentUpdated", segment);
+                            // Fix: Updated to emit segmentError with the correct object structure
                             this.emit("segmentError", { segment, error: segment.error });
                             resolve();
                           }
@@ -288,15 +290,17 @@ class RealTimeTranslationService extends EventEmitter {
                           segment.status = SegmentStatus.ERROR;
                           segment.error = new Error(`Speech synthesis failed: ${result.reason}`);
                           this.emit("segmentUpdated", segment);
+                          // Fix: Updated to emit segmentError with the correct object structure
                           this.emit("segmentError", { segment, error: segment.error });
                           resolve();
                         }
                       },
-                      (error: string) => {
+                      (error) => {
                         console.error("Error synthesizing speech:", error);
                         segment.status = SegmentStatus.ERROR;
                         segment.error = new Error(String(error));
                         this.emit("segmentUpdated", segment);
+                        // Fix: Updated to emit segmentError with the correct object structure
                         this.emit("segmentError", { segment, error: segment.error });
                         resolve();
                       }
@@ -306,6 +310,7 @@ class RealTimeTranslationService extends EventEmitter {
                     segment.status = SegmentStatus.ERROR;
                     segment.error = new Error("Synthesizer not initialized");
                     this.emit("segmentUpdated", segment);
+                    // Fix: Updated to emit segmentError with the correct object structure
                     this.emit("segmentError", { segment, error: segment.error });
                     resolve();
                   }
@@ -314,15 +319,17 @@ class RealTimeTranslationService extends EventEmitter {
                   segment.status = SegmentStatus.ERROR;
                   segment.error = new Error(`Translation failed: ${result.reason}`);
                   this.emit("segmentUpdated", segment);
+                  // Fix: Updated to emit segmentError with the correct object structure
                   this.emit("segmentError", { segment, error: segment.error });
                   resolve();
                 }
               },
-              (error: string) => {
+              (error) => {
                 console.error("Error translating text:", error);
                 segment.status = SegmentStatus.ERROR;
                 segment.error = new Error(String(error));
                 this.emit("segmentUpdated", segment);
+                // Fix: Updated to emit segmentError with the correct object structure
                 this.emit("segmentError", { segment, error: segment.error });
                 resolve();
               }
@@ -333,6 +340,7 @@ class RealTimeTranslationService extends EventEmitter {
           segment.status = SegmentStatus.ERROR;
           segment.error = error instanceof Error ? error : new Error(String(error));
           this.emit("segmentUpdated", segment);
+          // Fix: Updated to emit segmentError with the correct object structure
           this.emit("segmentError", { segment, error: segment.error });
         }
       };
