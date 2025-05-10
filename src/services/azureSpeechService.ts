@@ -1,4 +1,3 @@
-
 import * as sdk from "microsoft-cognitiveservices-speech-sdk";
 import { AzureConfig, SupportedLanguages } from "../types/voice-assistant";
 
@@ -127,8 +126,7 @@ class AzureSpeechService {
       );
       speechConfig.speechSynthesisLanguage = language;
       
-      // Optimizar configuración para síntesis más rápida
-      speechConfig.setProperty(sdk.PropertyId.SpeechServiceConnection_SynthesizeToAudioBufferMaxLatencyMs, "100");
+      // Remove the problematic property and use other optimization settings
       speechConfig.setProperty(sdk.PropertyId.SpeechServiceConnection_SynthOutputFormat, "audio-16khz-32kbitrate-mono-mp3");
 
       // Create pull stream to prevent automatic playback

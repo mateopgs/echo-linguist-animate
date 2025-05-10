@@ -1,4 +1,3 @@
-
 import * as sdk from "microsoft-cognitiveservices-speech-sdk";
 import { AzureConfig } from "../types/voice-assistant";
 import { EventEmitter } from "../utils/eventEmitter";
@@ -308,7 +307,6 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
       this.emit("segmentUpdated", segment);
       console.log(`Synthesizing segment ${segment.id}: "${segment.translatedText}"`);
       
-      // Pasamos directamente a la síntesis sin mejoras de LLM
       // Configure speech synthesizer
       const speechConfig = sdk.SpeechConfig.fromSubscription(
         this.config.key,
@@ -316,8 +314,7 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
       );
       speechConfig.speechSynthesisLanguage = this.targetLanguage;
       
-      // Optimizar la configuración para síntesis más rápida
-      speechConfig.setProperty(sdk.PropertyId.SpeechServiceConnection_SynthesizeToAudioBufferMaxLatencyMs, "100");
+      // Remove the problematic property and use other optimization settings
       speechConfig.setProperty(sdk.PropertyId.SpeechServiceConnection_SynthOutputFormat, "audio-16khz-32kbitrate-mono-mp3");
       
       // Use pull stream so SDK does not auto-play audio
@@ -467,4 +464,3 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
 }
 
 export const realTimeTranslationService = new RealTimeTranslationService();
-
