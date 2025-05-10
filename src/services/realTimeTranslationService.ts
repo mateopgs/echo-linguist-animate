@@ -24,6 +24,12 @@ export interface AudioSegment {
   error?: Error;
 }
 
+// Define the interface for segmentError event
+interface SegmentErrorEvent {
+  segment: AudioSegment;
+  error: Error;
+}
+
 class RealTimeTranslationService extends EventEmitter {
   private config: AzureConfig | null = null;
   private isListening = false;
@@ -216,111 +222,155 @@ class RealTimeTranslationService extends EventEmitter {
             translator.recognizeOnceAsync(
               segment.originalText!,
               (result) => {
-                if (result.reason === sdk.ResultReason.TranslatedSpeech) {
-                  segment.translatedText = result.translations.get(targetLangCode) || "";
-                  segment.status = SegmentStatus.SYNTHESIZING;
-                  this.emit("segmentUpdated", segment);
-                  
-                  // Synthesize speech
-                  if (this.synthesizer) {
-                    this.synthesizer.speakTextAsync(
-                      segment.translatedText,
-                      (result) => {
-                        if (result.reason === sdk.ResultReason.SynthesizingAudioCompleted) {
-                          segment.audioBuffer = result.audioData;
-                          segment.status = SegmentStatus.PLAYING;
-                          this.emit("segmentUpdated", segment);
-                          
-                          // Play synthesized speech
-                          try {
-                            if (this.audioContext) {
-                              this.audioContext.decodeAudioData(result.audioData).then(audioBuffer => {
-                                this.sourceNode = this.audioContext!.createBufferSource();
-                                this.sourceNode.buffer = audioBuffer;
-                                
-                                // Increase playback speed
-                                this.sourceNode.playbackRate.value = 1.1; // 10% faster
-                                
-                                this.sourceNode.connect(this.audioContext!.destination);
-                                
-                                // Pause recording if configured
-                                if (!this.capturingWhileSpeaking) {
-                                  if (this.recognizer) {
-                                    this.recognizer.stopContinuousRecognitionAsync();
-                                  }
+                if (result && typeof result === 'object' && 'reason' in result) {
+                  if (result.reason === sdk.ResultReason.TranslatedSpeech) {
+                    segment.translatedText = result.translations.get(targetLangCode) || "";
+                    segment.status = SegmentStatus.SYNTHESIZING;
+                    this.emit("segmentUpdated", segment);
+                    
+                    // Synthesize speech
+                    if (this.synthesizer) {
+                      this.synthesizer.speakTextAsync(
+                        segment.translatedText,
+                        (result) => {
+                          if (result && typeof result === 'object' && 'reason' in result) {
+                            if (result.reason === sdk.ResultReason.SynthesizingAudioCompleted) {
+                              segment.audioBuffer = result.audioData;
+                              segment.status = SegmentStatus.PLAYING;
+                              this.emit("segmentUpdated", segment);
+                              
+                              // Play synthesized speech
+                              try {
+                                if (this.audioContext) {
+                                  this.audioContext.decodeAudioData(result.audioData).then(audioBuffer => {
+                                    this.sourceNode = this.audioContext!.createBufferSource();
+                                    this.sourceNode.buffer = audioBuffer;
+                                    
+                                    // Increase playback speed
+                                    this.sourceNode.playbackRate.value = 1.1; // 10% faster
+                                    
+                                    this.sourceNode.connect(this.audioContext!.destination);
+                                    
+                                    // Pause recording if configured
+                                    if (!this.capturingWhileSpeaking) {
+                                      if (this.recognizer) {
+                                        this.recognizer.stopContinuousRecognitionAsync();
+                                      }
+                                    }
+                                    
+                                    // Set onended callback
+                                    this.sourceNode.onended = () => {
+                                      segment.status = SegmentStatus.COMPLETED;
+                                      this.emit("segmentUpdated", segment);
+                                      this.emit("segmentCompleted", segment);
+                                      
+                                      // Resume recognition if paused and still in session
+                                      if (!this.capturingWhileSpeaking && this.recognizer && this.isListening) {
+                                        this.recognizer.startContinuousRecognitionAsync();
+                                      }
+                                      
+                                      resolve();
+                                    };
+                                    
+                                    // Start playback
+                                    this.sourceNode.start();
+                                  }).catch(error => {
+                                    console.error("Error decoding audio data:", error);
+                                    segment.status = SegmentStatus.ERROR;
+                                    segment.error = error instanceof Error ? error : new Error(String(error));
+                                    this.emit("segmentUpdated", segment);
+                                    // Fix: Emit segmentError event with correct structure
+                                    this.emit("segmentError", {
+                                      segment,
+                                      error: segment.error
+                                    });
+                                    resolve();
+                                  });
                                 }
-                                
-                                // Set onended callback
-                                this.sourceNode.onended = () => {
-                                  segment.status = SegmentStatus.COMPLETED;
-                                  this.emit("segmentUpdated", segment);
-                                  this.emit("segmentCompleted", segment);
-                                  
-                                  // Resume recognition if paused and still in session
-                                  if (!this.capturingWhileSpeaking && this.recognizer && this.isListening) {
-                                    this.recognizer.startContinuousRecognitionAsync();
-                                  }
-                                  
-                                  resolve();
-                                };
-                                
-                                // Start playback
-                                this.sourceNode.start();
-                              }).catch(error => {
-                                console.error("Error decoding audio data:", error);
+                              } catch (error) {
+                                console.error("Error playing synthesized speech:", error);
                                 segment.status = SegmentStatus.ERROR;
                                 segment.error = error instanceof Error ? error : new Error(String(error));
                                 this.emit("segmentUpdated", segment);
-                                // Fix: Updated to emit segmentError with the correct object structure
-                                this.emit("segmentError", { segment, error: segment.error });
+                                // Fix: Emit segmentError event with correct structure
+                                this.emit("segmentError", {
+                                  segment,
+                                  error: segment.error
+                                });
                                 resolve();
+                              }
+                            } else {
+                              console.error("Speech synthesis failed:", result.reason);
+                              segment.status = SegmentStatus.ERROR;
+                              segment.error = new Error(`Speech synthesis failed: ${result.reason}`);
+                              this.emit("segmentUpdated", segment);
+                              // Fix: Emit segmentError event with correct structure
+                              this.emit("segmentError", {
+                                segment,
+                                error: segment.error
                               });
+                              resolve();
                             }
-                          } catch (error) {
-                            console.error("Error playing synthesized speech:", error);
+                          } else {
+                            console.error("Invalid synthesis result");
                             segment.status = SegmentStatus.ERROR;
-                            segment.error = error instanceof Error ? error : new Error(String(error));
+                            segment.error = new Error("Invalid synthesis result");
                             this.emit("segmentUpdated", segment);
-                            // Fix: Updated to emit segmentError with the correct object structure
-                            this.emit("segmentError", { segment, error: segment.error });
+                            // Fix: Emit segmentError event with correct structure
+                            this.emit("segmentError", {
+                              segment,
+                              error: segment.error
+                            });
                             resolve();
                           }
-                        } else {
-                          console.error("Speech synthesis failed:", result.reason);
+                        },
+                        (error) => {
+                          console.error("Error synthesizing speech:", error);
                           segment.status = SegmentStatus.ERROR;
-                          segment.error = new Error(`Speech synthesis failed: ${result.reason}`);
+                          segment.error = new Error(String(error));
                           this.emit("segmentUpdated", segment);
-                          // Fix: Updated to emit segmentError with the correct object structure
-                          this.emit("segmentError", { segment, error: segment.error });
+                          // Fix: Emit segmentError event with correct structure
+                          this.emit("segmentError", {
+                            segment,
+                            error: segment.error
+                          });
                           resolve();
                         }
-                      },
-                      (error) => {
-                        console.error("Error synthesizing speech:", error);
-                        segment.status = SegmentStatus.ERROR;
-                        segment.error = new Error(String(error));
-                        this.emit("segmentUpdated", segment);
-                        // Fix: Updated to emit segmentError with the correct object structure
-                        this.emit("segmentError", { segment, error: segment.error });
-                        resolve();
-                      }
-                    );
+                      );
+                    } else {
+                      console.error("Synthesizer not initialized");
+                      segment.status = SegmentStatus.ERROR;
+                      segment.error = new Error("Synthesizer not initialized");
+                      this.emit("segmentUpdated", segment);
+                      // Fix: Emit segmentError event with correct structure
+                      this.emit("segmentError", {
+                        segment,
+                        error: segment.error
+                      });
+                      resolve();
+                    }
                   } else {
-                    console.error("Synthesizer not initialized");
+                    console.error("Translation failed:", result.reason);
                     segment.status = SegmentStatus.ERROR;
-                    segment.error = new Error("Synthesizer not initialized");
+                    segment.error = new Error(`Translation failed: ${result.reason}`);
                     this.emit("segmentUpdated", segment);
-                    // Fix: Updated to emit segmentError with the correct object structure
-                    this.emit("segmentError", { segment, error: segment.error });
+                    // Fix: Emit segmentError event with correct structure
+                    this.emit("segmentError", {
+                      segment,
+                      error: segment.error
+                    });
                     resolve();
                   }
                 } else {
-                  console.error("Translation failed:", result.reason);
+                  console.error("Invalid translation result");
                   segment.status = SegmentStatus.ERROR;
-                  segment.error = new Error(`Translation failed: ${result.reason}`);
+                  segment.error = new Error("Invalid translation result");
                   this.emit("segmentUpdated", segment);
-                  // Fix: Updated to emit segmentError with the correct object structure
-                  this.emit("segmentError", { segment, error: segment.error });
+                  // Fix: Emit segmentError event with correct structure
+                  this.emit("segmentError", {
+                    segment,
+                    error: segment.error
+                  });
                   resolve();
                 }
               },
@@ -329,8 +379,11 @@ class RealTimeTranslationService extends EventEmitter {
                 segment.status = SegmentStatus.ERROR;
                 segment.error = new Error(String(error));
                 this.emit("segmentUpdated", segment);
-                // Fix: Updated to emit segmentError with the correct object structure
-                this.emit("segmentError", { segment, error: segment.error });
+                // Fix: Emit segmentError event with correct structure
+                this.emit("segmentError", {
+                  segment,
+                  error: segment.error
+                });
                 resolve();
               }
             );
@@ -340,8 +393,11 @@ class RealTimeTranslationService extends EventEmitter {
           segment.status = SegmentStatus.ERROR;
           segment.error = error instanceof Error ? error : new Error(String(error));
           this.emit("segmentUpdated", segment);
-          // Fix: Updated to emit segmentError with the correct object structure
-          this.emit("segmentError", { segment, error: segment.error });
+          // Fix: Emit segmentError event with correct structure
+          this.emit("segmentError", {
+            segment,
+            error: segment.error
+          });
         }
       };
       
