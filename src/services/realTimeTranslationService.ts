@@ -215,7 +215,7 @@ class RealTimeTranslationService extends EventEmitter {
           return new Promise<void>((resolve, reject) => {
             translator.recognizeOnceAsync(
               segment.originalText!,
-              result => {
+              (result: sdk.TranslationRecognitionResult) => {
                 if (result.reason === sdk.ResultReason.TranslatedSpeech) {
                   segment.translatedText = result.translations.get(targetLangCode) || "";
                   segment.status = SegmentStatus.SYNTHESIZING;
@@ -225,7 +225,7 @@ class RealTimeTranslationService extends EventEmitter {
                   if (this.synthesizer) {
                     this.synthesizer.speakTextAsync(
                       segment.translatedText,
-                      async (result) => {
+                      (result: sdk.SpeechSynthesisResult) => {
                         if (result.reason === sdk.ResultReason.SynthesizingAudioCompleted) {
                           segment.audioBuffer = result.audioData;
                           segment.status = SegmentStatus.PLAYING;
@@ -234,39 +234,46 @@ class RealTimeTranslationService extends EventEmitter {
                           // Play synthesized speech
                           try {
                             if (this.audioContext) {
-                              const audioBuffer = await this.audioContext.decodeAudioData(result.audioData);
-                              
-                              this.sourceNode = this.audioContext.createBufferSource();
-                              this.sourceNode.buffer = audioBuffer;
-                              
-                              // Increase playback speed
-                              this.sourceNode.playbackRate.value = 1.1; // 10% faster
-                              
-                              this.sourceNode.connect(this.audioContext.destination);
-                              
-                              // Pause recording if configured
-                              if (!this.capturingWhileSpeaking) {
-                                if (this.recognizer) {
-                                  this.recognizer.stopContinuousRecognitionAsync();
+                              this.audioContext.decodeAudioData(result.audioData).then(audioBuffer => {
+                                this.sourceNode = this.audioContext!.createBufferSource();
+                                this.sourceNode.buffer = audioBuffer;
+                                
+                                // Increase playback speed
+                                this.sourceNode.playbackRate.value = 1.1; // 10% faster
+                                
+                                this.sourceNode.connect(this.audioContext!.destination);
+                                
+                                // Pause recording if configured
+                                if (!this.capturingWhileSpeaking) {
+                                  if (this.recognizer) {
+                                    this.recognizer.stopContinuousRecognitionAsync();
+                                  }
                                 }
-                              }
-                              
-                              // Set onended callback
-                              this.sourceNode.onended = () => {
-                                segment.status = SegmentStatus.COMPLETED;
+                                
+                                // Set onended callback
+                                this.sourceNode.onended = () => {
+                                  segment.status = SegmentStatus.COMPLETED;
+                                  this.emit("segmentUpdated", segment);
+                                  this.emit("segmentCompleted", segment);
+                                  
+                                  // Resume recognition if paused and still in session
+                                  if (!this.capturingWhileSpeaking && this.recognizer && this.isListening) {
+                                    this.recognizer.startContinuousRecognitionAsync();
+                                  }
+                                  
+                                  resolve();
+                                };
+                                
+                                // Start playback
+                                this.sourceNode.start();
+                              }).catch(error => {
+                                console.error("Error decoding audio data:", error);
+                                segment.status = SegmentStatus.ERROR;
+                                segment.error = error instanceof Error ? error : new Error(String(error));
                                 this.emit("segmentUpdated", segment);
-                                this.emit("segmentCompleted", segment);
-                                
-                                // Resume recognition if paused and still in session
-                                if (!this.capturingWhileSpeaking && this.recognizer && this.isListening) {
-                                  this.recognizer.startContinuousRecognitionAsync();
-                                }
-                                
+                                this.emit("segmentError", { segment, error: segment.error });
                                 resolve();
-                              };
-                              
-                              // Start playback
-                              this.sourceNode.start();
+                              });
                             }
                           } catch (error) {
                             console.error("Error playing synthesized speech:", error);
@@ -285,10 +292,10 @@ class RealTimeTranslationService extends EventEmitter {
                           resolve();
                         }
                       },
-                      (error) => {
+                      (error: string) => {
                         console.error("Error synthesizing speech:", error);
                         segment.status = SegmentStatus.ERROR;
-                        segment.error = error instanceof Error ? error : new Error(String(error));
+                        segment.error = new Error(String(error));
                         this.emit("segmentUpdated", segment);
                         this.emit("segmentError", { segment, error: segment.error });
                         resolve();
@@ -311,10 +318,10 @@ class RealTimeTranslationService extends EventEmitter {
                   resolve();
                 }
               },
-              (error) => {
+              (error: string) => {
                 console.error("Error translating text:", error);
                 segment.status = SegmentStatus.ERROR;
-                segment.error = error instanceof Error ? error : new Error(String(error));
+                segment.error = new Error(String(error));
                 this.emit("segmentUpdated", segment);
                 this.emit("segmentError", { segment, error: segment.error });
                 resolve();
