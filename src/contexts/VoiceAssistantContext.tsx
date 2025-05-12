@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, useEffect, useRef } from "react";
 import { azureSpeechService } from "../services/azureSpeechService";
 import { realTimeTranslationService, SegmentStatus, AudioSegment } from "../services/realTimeTranslationService";
@@ -32,6 +31,10 @@ type VoiceAssistantContextType = {
   setCapturingWhileSpeaking: (enabled: boolean) => void;
   segmentInterval: number;
   setSegmentInterval: (ms: number) => void;
+  initialSilenceTimeout: number;
+  setInitialSilenceTimeout: (ms: number) => void;
+  endSilenceTimeout: number;
+  setEndSilenceTimeout: (ms: number) => void;
   availableVoices: VoiceOption[];
   selectedVoice: VoiceOption | null;
   setSelectedVoice: (voice: VoiceOption) => void;
@@ -66,6 +69,8 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
   const [isRealTimeMode, setRealTimeMode] = useState(true); // Activamos el modo en tiempo real por defecto
   const [isCapturingWhileSpeaking, setCapturingWhileSpeaking] = useState(true);
   const [segmentInterval, setSegmentInterval] = useState(200); // Reducido a 200ms por defecto para mayor rapidez
+  const [initialSilenceTimeout, setInitialSilenceTimeout] = useState(5000); // Silence detection start timeout (ms)
+  const [endSilenceTimeout, setEndSilenceTimeout] = useState(500); // Silence detection end timeout (ms)
   const [availableVoices, setAvailableVoices] = useState<VoiceOption[]>([]);
   const [selectedVoice, setSelectedVoice] = useState<VoiceOption | null>(null);
   const { toast } = useToast();
@@ -88,6 +93,12 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
     console.log("Setting segment interval to:", segmentInterval);
     realTimeTranslationService.setSegmentDuration(segmentInterval);
   }, [segmentInterval]);
+
+  // Update silence detection timeouts in the service
+  useEffect(() => {
+    console.log(`Setting silence timeouts: initial=${initialSilenceTimeout}ms, end=${endSilenceTimeout}ms`);
+    realTimeTranslationService.setSilenceTimeouts(initialSilenceTimeout, endSilenceTimeout);
+  }, [initialSilenceTimeout, endSilenceTimeout]);
 
   // Clean up active segments periodically
   useEffect(() => {
@@ -484,6 +495,10 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
         setCapturingWhileSpeaking,
         segmentInterval,
         setSegmentInterval,
+        initialSilenceTimeout,
+        setInitialSilenceTimeout,
+        endSilenceTimeout,
+        setEndSilenceTimeout,
         availableVoices,
         selectedVoice,
         setSelectedVoice

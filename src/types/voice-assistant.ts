@@ -1,4 +1,3 @@
-
 // Azure Speech Service types
 export type SupportedLanguages = {
   code: string;
@@ -33,3 +32,11 @@ export enum AssistantState {
   PROCESSING = "processing",
   ERROR = "error"
 }
+
+// Silence detection timeouts
+export type VoiceAssistantContextTypeSilence = {
+  initialSilenceTimeout: number;   // ms before recognizing speech as start
+  endSilenceTimeout: number;       // ms of silence marking segment end
+  setInitialSilenceTimeout: (ms: number) => void;
+  setEndSilenceTimeout: (ms: number) => void;
+};

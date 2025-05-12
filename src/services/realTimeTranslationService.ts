@@ -1,4 +1,3 @@
-
 import * as sdk from "microsoft-cognitiveservices-speech-sdk";
 import { AzureConfig, VoiceOption } from "../types/voice-assistant";
 import { EventEmitter } from "../utils/eventEmitter";
@@ -48,7 +47,8 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
   private segmentInterval: number = 3000; // 3 seconds per segment by default
   private captureTimer: NodeJS.Timeout | null = null;
   private isCapturingWhileSpeaking: boolean = false;
-  private currentVoice: VoiceOption | null = null;
+  private initialSilenceTimeoutMs: number = 5000; // default initial silence timeout in ms
+  private endSilenceTimeoutMs: number = 500; // default end silence timeout in ms
 
   constructor() {
     super();
@@ -93,6 +93,15 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
     return this.isCapturingWhileSpeaking;
   }
 
+  /**
+   * Configure silence detection timeouts for Azure translation recognizer.
+   */
+  public setSilenceTimeouts(initialMs: number, endMs: number) {
+    this.initialSilenceTimeoutMs = initialMs;
+    this.endSilenceTimeoutMs = endMs;
+    console.log(`Silence timeouts set: initial=${initialMs}ms, end=${endMs}ms`);
+  }
+
   public async startSession(): Promise<void> {
     if (!this.config) {
       throw new Error("Translation service not configured with Azure credentials");
@@ -121,11 +130,11 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
       // Reducir tiempos de espera para mayor rapidez
       translationConfig.setProperty(
         sdk.PropertyId.SpeechServiceConnection_InitialSilenceTimeoutMs,
-        "5000" // reducido de 10000 a 5000ms
+        this.initialSilenceTimeoutMs.toString()
       );
       translationConfig.setProperty(
         sdk.PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs,
-        "500" // reducido para respuesta más rápida
+        this.endSilenceTimeoutMs.toString()
       );
       
       // Setup audio config for microphone

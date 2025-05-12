@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Switch } from "./ui/switch";
 import { Label } from "./ui/label";
@@ -6,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/
 import { useVoiceAssistant } from "../contexts/VoiceAssistantContext";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "./ui/tooltip";
 
 const ConfigForm: React.FC = () => {
   const {
@@ -15,6 +15,10 @@ const ConfigForm: React.FC = () => {
     setCapturingWhileSpeaking,
     segmentInterval,
     setSegmentInterval,
+    initialSilenceTimeout,
+    setInitialSilenceTimeout,
+    endSilenceTimeout,
+    setEndSilenceTimeout,
     availableVoices,
     selectedVoice,
     setSelectedVoice,
@@ -66,7 +70,16 @@ const ConfigForm: React.FC = () => {
               <Label htmlFor="simultaneous-capture">Capturar audio mientras habla (superposición)</Label>
             </div>
             <div className="flex flex-col items-center justify-center space-y-1 w-full">
-              <Label htmlFor="segment-interval">Intervalo de segmentos: {segmentInterval / 1000} segundos</Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Label htmlFor="segment-interval">Intervalo de segmentos: {segmentInterval / 1000} segundos</Label>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    El tiempo en milisegundos para forzar nuevos segmentos durante la reproducción de audio.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
               <input
                 type="range"
                 id="segment-interval"
@@ -78,6 +91,34 @@ const ConfigForm: React.FC = () => {
                 className="w-3/4"
               />
               <span className="text-xs text-gray-500">Más corto = respuesta más rápida, puede causar más errores</span>
+            </div>
+            <div className="flex flex-col items-center justify-center space-y-1 w-full">
+              <Label htmlFor="initial-silence">Silencio inicial: {(initialSilenceTimeout/1000).toFixed(1)} segundos</Label>
+              <input
+                type="range"
+                id="initial-silence"
+                min="1000"
+                max="10000"
+                step="500"
+                value={initialSilenceTimeout}
+                onChange={e => setInitialSilenceTimeout(parseInt(e.target.value))}
+                className="w-3/4"
+              />
+              <span className="text-xs text-gray-500">Tiempo máximo de espera antes de detectar inicio de habla.</span>
+            </div>
+            <div className="flex flex-col items-center justify-center space-y-1 w-full">
+              <Label htmlFor="end-silence">Silencio final: {endSilenceTimeout} ms</Label>
+              <input
+                type="range"
+                id="end-silence"
+                min="100"
+                max="2000"
+                step="100"
+                value={endSilenceTimeout}
+                onChange={e => setEndSilenceTimeout(parseInt(e.target.value))}
+                className="w-3/4"
+              />
+              <span className="text-xs text-gray-500">Tiempo de silencio para marcar fin de segmento.</span>
             </div>
           </TabsContent>
           
