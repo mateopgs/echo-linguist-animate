@@ -45,10 +45,12 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
   private processing: boolean = false;
   private sourceLanguage: string = "es-ES";
   private targetLanguage: string = "en-US";
-  private segmentInterval: number = 3000; // 3 seconds per segment by default
+  private segmentInterval: number = 200; // 200ms por defecto
   private captureTimer: NodeJS.Timeout | null = null;
   private isCapturingWhileSpeaking: boolean = false;
   private currentVoice: VoiceOption | null = null;
+  private lastActivityTime: number = 0;
+  private silenceThreshold: number = 300; // ms de silencio antes de forzar segmentación
 
   constructor() {
     super();
@@ -106,6 +108,7 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
     this.processing = true;
     this.audioQueue = [];
     this.segmentCounter = 0;
+    this.lastActivityTime = Date.now();
     
     try {
       // Create translation recognizer
@@ -117,15 +120,25 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
       translationConfig.speechRecognitionLanguage = this.sourceLanguage;
       translationConfig.addTargetLanguage(this.targetLanguage.split('-')[0]);
 
-      // Configure for continuous recognition with segmentation
-      // Reducir tiempos de espera para mayor rapidez
+      // Configuración mejorada para una mayor sensibilidad
       translationConfig.setProperty(
         sdk.PropertyId.SpeechServiceConnection_InitialSilenceTimeoutMs,
-        "5000" // reducido de 10000 a 5000ms
+        "2000" // Reducido de 5000 a 2000ms para mayor sensibilidad
       );
       translationConfig.setProperty(
         sdk.PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs,
-        "500" // reducido para respuesta más rápida
+        "300" // Reducido para respuesta más rápida
+      );
+      
+      // Configuración para detección continua de voz
+      translationConfig.setProperty(
+        "SpeechServiceConnection_EnableContinuousRecognition",
+        "true"
+      );
+      
+      translationConfig.setProperty(
+        "SpeechServiceConnection_RecoTriggerRetryCount",
+        "0"
       );
       
       // Setup audio config for microphone
@@ -139,8 +152,8 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
 
       // Handle recognition events
       this.translationRecognizer.recognizing = (_, event) => {
-        // Ignore recognition during playback to prevent feedback loops
-        if (this.currentlyPlaying) return;
+        // Actualizar timestamp de actividad
+        this.lastActivityTime = Date.now();
         
         if (event.result && event.result.reason === sdk.ResultReason.TranslatingSpeech) {
           // This is interim recognition - could be used for real-time display
@@ -162,6 +175,9 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
 
       // Handle final recognition results with translation
       this.translationRecognizer.recognized = (_, event) => {
+        // Actualizar timestamp de actividad
+        this.lastActivityTime = Date.now();
+        
         if (event.result) {
           console.log("Recognition result reason:", event.result.reason);
           console.log("Recognition result text:", event.result.text);
@@ -270,33 +286,51 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
       clearInterval(this.captureTimer);
     }
     
-    // Reducir el intervalo para una segmentación más frecuente
+    // Usar el intervalo de segmentación configurado por el usuario
     this.captureTimer = setInterval(() => {
-      if (this.currentlyPlaying && this.isCapturingWhileSpeaking && this.translationRecognizer) {
-        console.log("Forcing segment creation while speaking");
-        // Create a one-time event handler for the next recognition
-        const originalHandler = this.translationRecognizer.recognized;
+      const now = Date.now();
+      const silenceTime = now - this.lastActivityTime;
+      
+      // Si hay silencio durante más tiempo que el umbral, forzar segmentación
+      if (silenceTime > this.silenceThreshold && this.translationRecognizer) {
+        console.log(`Silencio detectado por ${silenceTime}ms, forzando segmentación`);
         
-        // Store the original handler and set up a temporary wrapper
-        if (originalHandler) {
-          const tempHandler = (sender: sdk.TranslationRecognizer, event: sdk.TranslationRecognitionEventArgs) => {
-            // Call the original handler
-            originalHandler(sender, event);
-            
-            // Log the forced segment
-            console.log("Forced segment recognition:", event.result?.text);
-            
-            // Remove our temporary handler by restoring the original
-            if (this.translationRecognizer) {
-              this.translationRecognizer.recognized = originalHandler;
+        // Forzar la creación de un segmento si hay silencio
+        this.translationRecognizer.stopContinuousRecognitionAsync().then(() => {
+          // Breve pausa antes de reiniciar para asegurar que el segmento se procese
+          setTimeout(() => {
+            if (this.translationRecognizer && this.processing) {
+              this.translationRecognizer.startContinuousRecognitionAsync().catch(err => {
+                console.error("Error reiniciando el reconocimiento:", err);
+              });
             }
-          };
-          
-          // Replace with our temporary handler
-          this.translationRecognizer.recognized = tempHandler;
-        }
+          }, 50);
+        }).catch(error => {
+          console.error("Error al forzar segmentación:", error);
+        });
+        
+        // Actualizar el timestamp para evitar forzar demasiadas segmentaciones seguidas
+        this.lastActivityTime = now;
       }
-    }, Math.min(this.segmentInterval, 200)); // Usar un valor más bajo para mayor responsividad
+      
+      // Si está configurado para capturar mientras habla, podemos también forzar segmentación
+      // en intervalos regulares aunque no haya silencio
+      if (this.isCapturingWhileSpeaking && this.currentlyPlaying && this.translationRecognizer) {
+        console.log("Forzando segmentación durante reproducción");
+        // La misma lógica que arriba, pero se ejecuta aunque no haya silencio
+        this.translationRecognizer.stopContinuousRecognitionAsync().then(() => {
+          setTimeout(() => {
+            if (this.translationRecognizer && this.processing) {
+              this.translationRecognizer.startContinuousRecognitionAsync().catch(err => {
+                console.error("Error reiniciando el reconocimiento:", err);
+              });
+            }
+          }, 50);
+        }).catch(error => {
+          console.error("Error al forzar segmentación:", error);
+        });
+      }
+    }, this.segmentInterval);
   }
   
   // Stop the periodic segmentation timer
@@ -307,7 +341,7 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
     }
   }
 
-  // Process the segment through the TTS pipeline - Eliminada la mejora con LLM
+  // Process the segment through the TTS pipeline
   private async synthesizeSegment(segment: AudioSegment): Promise<void> {
     if (!this.config || !segment.translatedText) {
       console.error("Cannot synthesize - missing config or translated text");
@@ -332,7 +366,7 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
         console.log(`Using voice for synthesis: ${this.currentVoice.name} (${this.currentVoice.id})`);
       }
       
-      // Remove the problematic property and use other optimization settings
+      // Optimizar configuración para respuesta más rápida
       speechConfig.setProperty(sdk.PropertyId.SpeechServiceConnection_SynthOutputFormat, "audio-16khz-32kbitrate-mono-mp3");
       
       // Use pull stream so SDK does not auto-play audio
@@ -419,7 +453,7 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
       
       // Check for more segments to play
       console.log("Checking for more segments to play");
-      setTimeout(() => this.playNextInQueue(), 10); // Reducido de 10ms para respuesta más rápida
+      setTimeout(() => this.playNextInQueue(), 0); // Inmediato para reducir latencia
     }
   }
 

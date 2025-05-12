@@ -1,4 +1,3 @@
-
 import React, { createContext, useState, useContext, useEffect, useRef } from "react";
 import { azureSpeechService } from "../services/azureSpeechService";
 import { realTimeTranslationService, SegmentStatus, AudioSegment } from "../services/realTimeTranslationService";
@@ -65,7 +64,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
   const [isConfigured, setIsConfigured] = useState(false);
   const [isRealTimeMode, setRealTimeMode] = useState(true); // Activamos el modo en tiempo real por defecto
   const [isCapturingWhileSpeaking, setCapturingWhileSpeaking] = useState(true);
-  const [segmentInterval, setSegmentInterval] = useState(200); // Reducido a 200ms por defecto para mayor rapidez
+  const [segmentInterval, setSegmentInterval] = useState(200); // 200ms por defecto para mayor rapidez
   const [availableVoices, setAvailableVoices] = useState<VoiceOption[]>([]);
   const [selectedVoice, setSelectedVoice] = useState<VoiceOption | null>(null);
   const { toast } = useToast();
@@ -95,10 +94,10 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
       setActiveSegments(prev => 
         prev.filter(segment => 
           segment.status !== SegmentStatus.COMPLETED && 
-          Date.now() - segment.timestamp < 30000 // Reducido a 30 segundos para limpiar más rápido
+          Date.now() - segment.timestamp < 15000 // Reducido a 15 segundos para limpiar más rápido
         )
       );
-    }, 5000); // Aumentar frecuencia de limpieza
+    }, 3000); // Aumentar frecuencia de limpieza
     
     return () => clearInterval(cleanupInterval);
   }, []);

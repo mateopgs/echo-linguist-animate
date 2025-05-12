@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/
 import { useVoiceAssistant } from "../contexts/VoiceAssistantContext";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
+import { Slider } from "./ui/slider";
 
 const ConfigForm: React.FC = () => {
   const {
@@ -20,10 +21,6 @@ const ConfigForm: React.FC = () => {
     setSelectedVoice,
     targetLanguage
   } = useVoiceAssistant();
-
-  const handleIntervalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSegmentInterval(parseInt(e.target.value));
-  };
 
   // Agrupar voces por idioma para organizar la selección
   const voicesByLanguage = React.useMemo(() => {
@@ -47,6 +44,12 @@ const ConfigForm: React.FC = () => {
     return availableVoices.filter(voice => voice.id.startsWith(langCode));
   }, [availableVoices, targetLanguage]);
 
+  // Convertir el valor del intervalo para la interfaz de usuario
+  const handleIntervalChange = (value: number[]) => {
+    // El valor viene como un array porque el Slider de shadcn/ui funciona así
+    setSegmentInterval(value[0]);
+  };
+
   return (
     <Card className="w-full max-w-md mx-auto">
       <CardContent className="flex flex-col items-center justify-center py-6 space-y-6">
@@ -65,19 +68,23 @@ const ConfigForm: React.FC = () => {
               <Switch id="simultaneous-capture" checked={isCapturingWhileSpeaking} onCheckedChange={setCapturingWhileSpeaking} />
               <Label htmlFor="simultaneous-capture">Capturar audio mientras habla (superposición)</Label>
             </div>
-            <div className="flex flex-col items-center justify-center space-y-1 w-full">
-              <Label htmlFor="segment-interval">Intervalo de segmentos: {segmentInterval / 1000} segundos</Label>
-              <input
-                type="range"
+            <div className="flex flex-col items-center justify-center space-y-3 w-full">
+              <div className="flex justify-between w-3/4">
+                <Label htmlFor="segment-interval">Intervalo de segmentos:</Label>
+                <span className="font-medium">{segmentInterval / 1000} seg</span>
+              </div>
+              <Slider
                 id="segment-interval"
-                min="50"
-                max="1000"
-                step="50"
-                value={segmentInterval}
-                onChange={handleIntervalChange}
+                min={50}
+                max={1000}
+                step={50}
+                value={[segmentInterval]}
+                onValueChange={handleIntervalChange}
                 className="w-3/4"
               />
-              <span className="text-xs text-gray-500">Más corto = respuesta más rápida, puede causar más errores</span>
+              <span className="text-xs text-gray-500 text-center">
+                Más corto = respuesta más rápida, puede aumentar la sensibilidad
+              </span>
             </div>
           </TabsContent>
           
