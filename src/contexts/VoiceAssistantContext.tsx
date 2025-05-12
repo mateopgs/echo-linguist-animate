@@ -2,7 +2,7 @@
 import React, { createContext, useState, useContext, useEffect, useRef } from "react";
 import { azureSpeechService } from "../services/azureSpeechService";
 import { realTimeTranslationService, SegmentStatus, AudioSegment } from "../services/realTimeTranslationService";
-import { SupportedLanguages, TranscriptionResult, AssistantState, AzureConfig } from "../types/voice-assistant";
+import { SupportedLanguages, TranscriptionResult, AssistantState, AzureConfig, VoiceOption } from "../types/voice-assistant";
 import { useToast } from "../hooks/use-toast";
 
 type VoiceAssistantContextType = {
@@ -32,6 +32,9 @@ type VoiceAssistantContextType = {
   setCapturingWhileSpeaking: (enabled: boolean) => void;
   segmentInterval: number;
   setSegmentInterval: (ms: number) => void;
+  availableVoices: VoiceOption[];
+  selectedVoice: VoiceOption | null;
+  setSelectedVoice: (voice: VoiceOption) => void;
 };
 
 const VoiceAssistantContext = createContext<VoiceAssistantContextType | null>(null);
@@ -63,6 +66,8 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
   const [isRealTimeMode, setRealTimeMode] = useState(true); // Activamos el modo en tiempo real por defecto
   const [isCapturingWhileSpeaking, setCapturingWhileSpeaking] = useState(true);
   const [segmentInterval, setSegmentInterval] = useState(200); // Reducido a 200ms por defecto para mayor rapidez
+  const [availableVoices, setAvailableVoices] = useState<VoiceOption[]>([]);
+  const [selectedVoice, setSelectedVoice] = useState<VoiceOption | null>(null);
   const { toast } = useToast();
 
   // Monitorear cambios importantes con logs
@@ -123,6 +128,32 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
               variant: "destructive",
             });
           });
+        
+        // Load available voices
+        azureSpeechService
+          .getSupportedVoices()
+          .then((voices) => {
+            console.log("Loaded supported voices:", voices);
+            setAvailableVoices(voices);
+            
+            // Seleccionar una voz por defecto según el idioma destino
+            if (voices.length > 0) {
+              const defaultVoice = voices.find(v => v.id.startsWith(targetLanguage.split('-')[0]));
+              if (defaultVoice) {
+                setSelectedVoice(defaultVoice);
+                azureSpeechService.setVoice(defaultVoice);
+                realTimeTranslationService.setVoice(defaultVoice);
+              }
+            }
+          })
+          .catch((error) => {
+            console.error("Failed to load supported voices:", error);
+            toast({
+              title: "Error",
+              description: "No se pudieron cargar las voces disponibles",
+              variant: "destructive",
+            });
+          });
       } catch (error) {
         console.error("Failed to configure Azure Speech Service:", error);
         setIsConfigured(false);
@@ -135,14 +166,35 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
     } else {
       setIsConfigured(false);
     }
-  }, [apiKey, region, toast]);
+  }, [apiKey, region, toast, targetLanguage]);
 
   // Update language settings in real-time service when they change
   useEffect(() => {
     console.log(`Setting languages: source=${sourceLanguage}, target=${targetLanguage}`);
     realTimeTranslationService.setSourceLanguage(sourceLanguage);
     realTimeTranslationService.setTargetLanguage(targetLanguage);
-  }, [sourceLanguage, targetLanguage]);
+    
+    // Update selected voice when target language changes
+    if (availableVoices.length > 0) {
+      const targetLangCode = targetLanguage.split('-')[0];
+      const voiceForLanguage = availableVoices.find(v => v.id.startsWith(targetLangCode));
+      if (voiceForLanguage && (!selectedVoice || !selectedVoice.id.startsWith(targetLangCode))) {
+        console.log(`Changing voice to match target language: ${voiceForLanguage.name}`);
+        setSelectedVoice(voiceForLanguage);
+        azureSpeechService.setVoice(voiceForLanguage);
+        realTimeTranslationService.setVoice(voiceForLanguage);
+      }
+    }
+  }, [sourceLanguage, targetLanguage, availableVoices, selectedVoice]);
+
+  // Update voice when it changes
+  useEffect(() => {
+    if (selectedVoice) {
+      console.log(`Setting voice: ${selectedVoice.name} (${selectedVoice.id})`);
+      azureSpeechService.setVoice(selectedVoice);
+      realTimeTranslationService.setVoice(selectedVoice);
+    }
+  }, [selectedVoice]);
 
   // Set up real-time translation event handlers
   useEffect(() => {
@@ -432,6 +484,9 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
         setCapturingWhileSpeaking,
         segmentInterval,
         setSegmentInterval,
+        availableVoices,
+        selectedVoice,
+        setSelectedVoice
       }}
     >
       {children}

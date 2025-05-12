@@ -1,9 +1,13 @@
+
 import * as sdk from "microsoft-cognitiveservices-speech-sdk";
-import { AzureConfig, SupportedLanguages } from "../types/voice-assistant";
+import { AzureConfig, SupportedLanguages, VoiceOption } from "../types/voice-assistant";
 
 const defaultLanguages = [
   { code: "en-US", name: "English", nativeName: "English" },
-  { code: "es-ES", name: "Spanish", nativeName: "Español" },
+  { code: "es-ES", name: "Spanish (Spain)", nativeName: "Español (España)" },
+  { code: "es-MX", name: "Spanish (Mexico)", nativeName: "Español (México)" },
+  { code: "es-AR", name: "Spanish (Argentina)", nativeName: "Español (Argentina)" },
+  { code: "es-CO", name: "Spanish (Colombia)", nativeName: "Español (Colombia)" },
   { code: "fr-FR", name: "French", nativeName: "Français" },
   { code: "de-DE", name: "German", nativeName: "Deutsch" },
   { code: "it-IT", name: "Italian", nativeName: "Italiano" },
@@ -14,12 +18,59 @@ const defaultLanguages = [
   { code: "zh-CN", name: "Chinese (Simplified)", nativeName: "中文" }
 ];
 
+// Voces predeterminadas para los idiomas principales
+const defaultVoices: VoiceOption[] = [
+  // Español - España
+  { id: "es-ES-ElviraNeural", name: "Elvira", gender: "Female", isNeural: true },
+  { id: "es-ES-AlvaroNeural", name: "Alvaro", gender: "Male", isNeural: true },
+  { id: "es-ES-AbrilNeural", name: "Abril", gender: "Female", isNeural: true },
+  // Español - México
+  { id: "es-MX-DaliaNeural", name: "Dalia", gender: "Female", isNeural: true },
+  { id: "es-MX-JorgeNeural", name: "Jorge", gender: "Male", isNeural: true },
+  { id: "es-MX-BeatrizNeural", name: "Beatriz", gender: "Female", isNeural: true },
+  // Español - Argentina
+  { id: "es-AR-ElenaNeural", name: "Elena", gender: "Female", isNeural: true },
+  { id: "es-AR-TomasNeural", name: "Tomas", gender: "Male", isNeural: true },
+  // Español - Colombia
+  { id: "es-CO-GonzaloNeural", name: "Gonzalo", gender: "Male", isNeural: true },
+  { id: "es-CO-SalomeNeural", name: "Salome", gender: "Female", isNeural: true },
+  // Inglés - EEUU
+  { id: "en-US-JennyNeural", name: "Jenny", gender: "Female", isNeural: true },
+  { id: "en-US-GuyNeural", name: "Guy", gender: "Male", isNeural: true },
+  { id: "en-US-AriaNeural", name: "Aria", gender: "Female", isNeural: true },
+  // Francés
+  { id: "fr-FR-DeniseNeural", name: "Denise", gender: "Female", isNeural: true },
+  { id: "fr-FR-HenriNeural", name: "Henri", gender: "Male", isNeural: true },
+  // Alemán
+  { id: "de-DE-KatjaNeural", name: "Katja", gender: "Female", isNeural: true },
+  { id: "de-DE-ConradNeural", name: "Conrad", gender: "Male", isNeural: true },
+  // Italiano
+  { id: "it-IT-IsabellaNeural", name: "Isabella", gender: "Female", isNeural: true },
+  { id: "it-IT-DiegoNeural", name: "Diego", gender: "Male", isNeural: true },
+  // Portugués
+  { id: "pt-BR-FranciscaNeural", name: "Francisca", gender: "Female", isNeural: true },
+  { id: "pt-BR-AntonioNeural", name: "Antonio", gender: "Male", isNeural: true },
+  // Japonés
+  { id: "ja-JP-NanamiNeural", name: "Nanami", gender: "Female", isNeural: true },
+  { id: "ja-JP-KeitaNeural", name: "Keita", gender: "Male", isNeural: true },
+  // Chino
+  { id: "zh-CN-XiaoxiaoNeural", name: "Xiaoxiao", gender: "Female", isNeural: true },
+  { id: "zh-CN-YunxiNeural", name: "Yunxi", gender: "Male", isNeural: true },
+  // Ruso
+  { id: "ru-RU-SvetlanaNeural", name: "Svetlana", gender: "Female", isNeural: true },
+  { id: "ru-RU-DmitryNeural", name: "Dmitry", gender: "Male", isNeural: true },
+  // Coreano
+  { id: "ko-KR-SunHiNeural", name: "SunHi", gender: "Female", isNeural: true },
+  { id: "ko-KR-InJoonNeural", name: "InJoon", gender: "Male", isNeural: true },
+];
+
 class AzureSpeechService {
   private config: AzureConfig | null = null;
   private recognizer: sdk.SpeechRecognizer | null = null;
   private synthesizer: sdk.SpeechSynthesizer | null = null;
   private audioContext: AudioContext | null = null;
   private sourceNode: AudioBufferSourceNode | null = null;
+  private currentVoice: VoiceOption | null = null;
 
   public setConfig(config: AzureConfig) {
     this.config = config;
@@ -36,6 +87,16 @@ class AzureSpeechService {
   public getSupportedLanguages() {
     // Return default languages until we can fetch from Azure
     return Promise.resolve(defaultLanguages);
+  }
+  
+  public getSupportedVoices() {
+    // Return default voices until we can fetch from Azure
+    return Promise.resolve(defaultVoices);
+  }
+  
+  public setVoice(voice: VoiceOption) {
+    this.currentVoice = voice;
+    console.log("Voice set to:", voice);
   }
 
   public async startRecognition(
@@ -125,6 +186,12 @@ class AzureSpeechService {
         this.config.region
       );
       speechConfig.speechSynthesisLanguage = language;
+      
+      // Si hay una voz seleccionada para el idioma, usarla
+      if (this.currentVoice) {
+        speechConfig.speechSynthesisVoiceName = this.currentVoice.id;
+        console.log(`Using voice: ${this.currentVoice.name} (${this.currentVoice.id})`);
+      }
       
       // Remove the problematic property and use other optimization settings
       speechConfig.setProperty(sdk.PropertyId.SpeechServiceConnection_SynthOutputFormat, "audio-16khz-32kbitrate-mono-mp3");

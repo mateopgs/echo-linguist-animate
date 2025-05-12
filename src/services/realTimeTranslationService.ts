@@ -1,5 +1,6 @@
+
 import * as sdk from "microsoft-cognitiveservices-speech-sdk";
-import { AzureConfig } from "../types/voice-assistant";
+import { AzureConfig, VoiceOption } from "../types/voice-assistant";
 import { EventEmitter } from "../utils/eventEmitter";
 
 // Segment processing states and events
@@ -47,6 +48,7 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
   private segmentInterval: number = 3000; // 3 seconds per segment by default
   private captureTimer: NodeJS.Timeout | null = null;
   private isCapturingWhileSpeaking: boolean = false;
+  private currentVoice: VoiceOption | null = null;
 
   constructor() {
     super();
@@ -69,6 +71,11 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
 
   public setTargetLanguage(language: string) {
     this.targetLanguage = language;
+  }
+  
+  public setVoice(voice: VoiceOption) {
+    this.currentVoice = voice;
+    console.log(`Real-time Translation Service voice set to: ${voice.name} (${voice.id})`);
   }
   
   public setSegmentDuration(durationMs: number) {
@@ -134,7 +141,8 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
       this.translationRecognizer.recognizing = (_, event) => {
         // Ignore recognition during playback to prevent feedback loops
         if (this.currentlyPlaying) return;
-        if (event.result.reason === sdk.ResultReason.TranslatingSpeech) {
+        
+        if (event.result && event.result.reason === sdk.ResultReason.TranslatingSpeech) {
           // This is interim recognition - could be used for real-time display
           console.log("Recognizing:", event.result.text);
           
@@ -144,7 +152,7 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
             timestamp: Date.now(),
             status: SegmentStatus.RECOGNIZING,
             originalText: event.result.text,
-            translatedText: event.result.translations.get(this.targetLanguage.split('-')[0]) || ""
+            translatedText: event.result.translations?.get(this.targetLanguage.split('-')[0]) || ""
           };
           
           // Emitir un evento para actualizar la UI con reconocimiento provisional
@@ -154,34 +162,36 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
 
       // Handle final recognition results with translation
       this.translationRecognizer.recognized = (_, event) => {
-        console.log("Recognition result reason:", event.result.reason);
-        console.log("Recognition result text:", event.result.text);
-        
-        if (
-          event.result.reason === sdk.ResultReason.TranslatedSpeech &&
-          event.result.text.trim() !== ""
-        ) {
-          // Create a new segment
-          const segmentId = this.segmentCounter++;
-          const targetLang = this.targetLanguage.split('-')[0];
-          const translation = event.result.translations.get(targetLang);
+        if (event.result) {
+          console.log("Recognition result reason:", event.result.reason);
+          console.log("Recognition result text:", event.result.text);
           
-          console.log("Received translation:", translation);
-          
-          const segment: AudioSegment = {
-            id: segmentId,
-            timestamp: Date.now(),
-            status: SegmentStatus.TRANSLATING,
-            originalText: event.result.text,
-            translatedText: translation || ""
-          };
-          
-          // Add to processing queue and emit event
-          this.audioQueue.push(segment);
-          this.emit("segmentCreated", segment);
-          
-          // Synthesize the translation immediately without LLM improvement
-          this.synthesizeSegment(segment);
+          if (
+            event.result.reason === sdk.ResultReason.TranslatedSpeech &&
+            event.result.text.trim() !== ""
+          ) {
+            // Create a new segment
+            const segmentId = this.segmentCounter++;
+            const targetLang = this.targetLanguage.split('-')[0];
+            const translation = event.result.translations?.get(targetLang);
+            
+            console.log("Received translation:", translation);
+            
+            const segment: AudioSegment = {
+              id: segmentId,
+              timestamp: Date.now(),
+              status: SegmentStatus.TRANSLATING,
+              originalText: event.result.text,
+              translatedText: translation || ""
+            };
+            
+            // Add to processing queue and emit event
+            this.audioQueue.push(segment);
+            this.emit("segmentCreated", segment);
+            
+            // Synthesize the translation immediately without LLM improvement
+            this.synthesizeSegment(segment);
+          }
         }
       };
 
@@ -274,10 +284,12 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
             originalHandler(sender, event);
             
             // Log the forced segment
-            console.log("Forced segment recognition:", event.result.text);
+            console.log("Forced segment recognition:", event.result?.text);
             
             // Remove our temporary handler by restoring the original
-            this.translationRecognizer!.recognized = originalHandler;
+            if (this.translationRecognizer) {
+              this.translationRecognizer.recognized = originalHandler;
+            }
           };
           
           // Replace with our temporary handler
@@ -314,6 +326,12 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
       );
       speechConfig.speechSynthesisLanguage = this.targetLanguage;
       
+      // Use selected voice if available
+      if (this.currentVoice) {
+        speechConfig.speechSynthesisVoiceName = this.currentVoice.id;
+        console.log(`Using voice for synthesis: ${this.currentVoice.name} (${this.currentVoice.id})`);
+      }
+      
       // Remove the problematic property and use other optimization settings
       speechConfig.setProperty(sdk.PropertyId.SpeechServiceConnection_SynthOutputFormat, "audio-16khz-32kbitrate-mono-mp3");
       
@@ -327,12 +345,12 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
         synthesizer.speakTextAsync(
           segment.translatedText!,
           (result) => {
-            console.log(`Synthesis completed for segment ${segment.id}, reason: ${result.reason}`);
-            if (result.reason === sdk.ResultReason.SynthesizingAudioCompleted) {
+            console.log(`Synthesis completed for segment ${segment.id}, reason: ${result?.reason}`);
+            if (result && result.reason === sdk.ResultReason.SynthesizingAudioCompleted) {
               resolve(result);
             } else {
-              console.error(`Synthesis failed: ${result.reason}`);
-              reject(new Error(`Speech synthesis failed: ${result.reason}`));
+              console.error(`Synthesis failed: ${result?.reason}`);
+              reject(new Error(`Speech synthesis failed: ${result?.reason}`));
             }
             synthesizer.close();
           },

@@ -6,6 +6,13 @@ export type SupportedLanguages = {
   nativeName: string;
 };
 
+export type VoiceOption = {
+  id: string;
+  name: string; 
+  gender: "Male" | "Female";
+  isNeural?: boolean;
+};
+
 export type AzureConfig = {
   key: string;
   region: string;
