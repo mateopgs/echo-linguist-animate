@@ -296,18 +296,7 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
         console.log(`Silencio detectado por ${silenceTime}ms, forzando segmentación`);
         
         // Forzar la creación de un segmento si hay silencio
-        this.translationRecognizer.stopContinuousRecognitionAsync().then(() => {
-          // Breve pausa antes de reiniciar para asegurar que el segmento se procese
-          setTimeout(() => {
-            if (this.translationRecognizer && this.processing) {
-              this.translationRecognizer.startContinuousRecognitionAsync().catch(err => {
-                console.error("Error reiniciando el reconocimiento:", err);
-              });
-            }
-          }, 50);
-        }).catch(error => {
-          console.error("Error al forzar segmentación:", error);
-        });
+        this.forceSegmentation();
         
         // Actualizar el timestamp para evitar forzar demasiadas segmentaciones seguidas
         this.lastActivityTime = now;
@@ -318,19 +307,34 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
       if (this.isCapturingWhileSpeaking && this.currentlyPlaying && this.translationRecognizer) {
         console.log("Forzando segmentación durante reproducción");
         // La misma lógica que arriba, pero se ejecuta aunque no haya silencio
-        this.translationRecognizer.stopContinuousRecognitionAsync().then(() => {
-          setTimeout(() => {
-            if (this.translationRecognizer && this.processing) {
-              this.translationRecognizer.startContinuousRecognitionAsync().catch(err => {
-                console.error("Error reiniciando el reconocimiento:", err);
-              });
-            }
-          }, 50);
-        }).catch(error => {
-          console.error("Error al forzar segmentación:", error);
-        });
+        this.forceSegmentation();
       }
     }, this.segmentInterval);
+  }
+  
+  // Helper method to force segmentation - fixes the Promise-related errors
+  private forceSegmentation(): void {
+    if (!this.translationRecognizer || !this.processing) return;
+    
+    // Using async/await with Promise handling
+    (async () => {
+      try {
+        await this.translationRecognizer!.stopContinuousRecognitionAsync();
+        
+        // Breve pausa antes de reiniciar
+        setTimeout(async () => {
+          if (this.translationRecognizer && this.processing) {
+            try {
+              await this.translationRecognizer.startContinuousRecognitionAsync();
+            } catch (err) {
+              console.error("Error reiniciando el reconocimiento:", err);
+            }
+          }
+        }, 50);
+      } catch (error) {
+        console.error("Error al forzar segmentación:", error);
+      }
+    })();
   }
   
   // Stop the periodic segmentation timer
