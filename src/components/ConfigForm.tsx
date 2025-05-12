@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/
 import { useVoiceAssistant } from "../contexts/VoiceAssistantContext";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
+import { Slider } from "./ui/slider";
 
 const ConfigForm: React.FC = () => {
   const {
@@ -18,7 +19,9 @@ const ConfigForm: React.FC = () => {
     availableVoices,
     selectedVoice,
     setSelectedVoice,
-    targetLanguage
+    targetLanguage,
+    wordThreshold,
+    setWordThreshold
   } = useVoiceAssistant();
 
   const handleIntervalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -78,6 +81,21 @@ const ConfigForm: React.FC = () => {
                 className="w-3/4"
               />
               <span className="text-xs text-gray-500">Más corto = respuesta más rápida, puede causar más errores</span>
+            </div>
+            <div className="flex flex-col items-center justify-center space-y-1 w-full">
+              <Label htmlFor="word-threshold">
+                Reproducción temprana: {wordThreshold} palabras
+              </Label>
+              <Slider 
+                id="word-threshold"
+                defaultValue={[wordThreshold]} 
+                min={1} 
+                max={10} 
+                step={1}
+                onValueChange={values => setWordThreshold(values[0])}
+                className="w-3/4"
+              />
+              <span className="text-xs text-gray-500">Número de palabras para iniciar la reproducción temprana</span>
             </div>
           </TabsContent>
           

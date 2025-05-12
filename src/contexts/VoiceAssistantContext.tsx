@@ -35,6 +35,8 @@ type VoiceAssistantContextType = {
   availableVoices: VoiceOption[];
   selectedVoice: VoiceOption | null;
   setSelectedVoice: (voice: VoiceOption) => void;
+  wordThreshold: number;
+  setWordThreshold: (threshold: number) => void;
 };
 
 const VoiceAssistantContext = createContext<VoiceAssistantContextType | null>(null);
@@ -68,6 +70,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
   const [segmentInterval, setSegmentInterval] = useState(200); // Reducido a 200ms por defecto para mayor rapidez
   const [availableVoices, setAvailableVoices] = useState<VoiceOption[]>([]);
   const [selectedVoice, setSelectedVoice] = useState<VoiceOption | null>(null);
+  const [wordThreshold, setWordThreshold] = useState<number>(5); // Palabra threshold para reproducción temprana
   const { toast } = useToast();
 
   // Monitorear cambios importantes con logs
@@ -88,6 +91,12 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
     console.log("Setting segment interval to:", segmentInterval);
     realTimeTranslationService.setSegmentDuration(segmentInterval);
   }, [segmentInterval]);
+
+  // Apply word threshold for early playback when it changes
+  useEffect(() => {
+    console.log("Setting word threshold to:", wordThreshold);
+    realTimeTranslationService.setWordThresholdForEarlyPlayback(wordThreshold);
+  }, [wordThreshold]);
 
   // Clean up active segments periodically
   useEffect(() => {
@@ -486,7 +495,9 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
         setSegmentInterval,
         availableVoices,
         selectedVoice,
-        setSelectedVoice
+        setSelectedVoice,
+        wordThreshold,
+        setWordThreshold
       }}
     >
       {children}
