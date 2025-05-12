@@ -21,7 +21,6 @@ export interface AudioSegment {
   originalText?: string;
   translatedText?: string;
   audioData?: ArrayBuffer;
-  isPartial?: boolean;
 }
 
 export interface TranslationEvents {
@@ -50,8 +49,6 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
   private captureTimer: NodeJS.Timeout | null = null;
   private isCapturingWhileSpeaking: boolean = false;
   private currentVoice: VoiceOption | null = null;
-  private wordThresholdForEarlyPlayback: number = 5; // Threshold for early playback
-  private partialSegments: Map<number, string> = new Map(); // Track partial segments
 
   constructor() {
     super();
@@ -92,11 +89,6 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
     }
   }
   
-  public setWordThresholdForEarlyPlayback(threshold: number) {
-    this.wordThresholdForEarlyPlayback = threshold;
-    console.log(`Word threshold for early playback set to ${threshold} words`);
-  }
-  
   public get isContinuousCapturing(): boolean {
     return this.isCapturingWhileSpeaking;
   }
@@ -114,7 +106,6 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
     this.processing = true;
     this.audioQueue = [];
     this.segmentCounter = 0;
-    this.partialSegments.clear();
     
     try {
       // Create translation recognizer
@@ -155,23 +146,14 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
           // This is interim recognition - could be used for real-time display
           console.log("Recognizing:", event.result.text);
           
-          const targetLang = this.targetLanguage.split('-')[0];
-          const translatedText = event.result.translations?.get(targetLang) || "";
-          
           // Crear un segmento temporal para mostrar progreso
           const tempSegment: AudioSegment = {
             id: -1, // ID temporal
             timestamp: Date.now(),
             status: SegmentStatus.RECOGNIZING,
             originalText: event.result.text,
-            translatedText: translatedText
+            translatedText: event.result.translations?.get(this.targetLanguage.split('-')[0]) || ""
           };
-          
-          // Check if we have enough words for early playback
-          const wordCount = translatedText.split(' ').filter(word => word.trim().length > 0).length;
-          if (wordCount >= this.wordThresholdForEarlyPlayback) {
-            this.createPartialSegmentForEarlyPlayback(event.result.text, translatedText);
-          }
           
           // Emitir un evento para actualizar la UI con reconocimiento provisional
           this.emit("segmentUpdated", tempSegment);
@@ -247,43 +229,6 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
       this.processing = false;
       throw error;
     }
-  }
-
-  // New method to create partial segments for early playback
-  private createPartialSegmentForEarlyPlayback(originalText: string, translatedText: string): void {
-    // Check if we already have a partial segment with this text
-    const existingPartialKeys = Array.from(this.partialSegments.keys());
-    
-    // Don't create a new partial if the text is already being processed
-    for (const key of existingPartialKeys) {
-      const existingText = this.partialSegments.get(key);
-      if (existingText === translatedText) {
-        console.log("Skipping duplicate partial segment:", translatedText);
-        return;
-      }
-    }
-    
-    const segmentId = this.segmentCounter++;
-    console.log(`Creating partial segment ${segmentId} for early playback: "${translatedText}"`);
-    
-    const segment: AudioSegment = {
-      id: segmentId,
-      timestamp: Date.now(),
-      status: SegmentStatus.TRANSLATING,
-      originalText: originalText,
-      translatedText: translatedText,
-      isPartial: true
-    };
-    
-    // Add to processing queue and emit event
-    this.audioQueue.push(segment);
-    this.emit("segmentCreated", segment);
-    
-    // Remember this partial segment to avoid duplicates
-    this.partialSegments.set(segmentId, translatedText);
-    
-    // Synthesize the translation immediately
-    this.synthesizeSegment(segment);
   }
 
   public async stopSession(): Promise<void> {
@@ -465,11 +410,6 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
       
       // Remove completed segment from queue
       this.audioQueue.shift();
-      
-      // Also remove from partialSegments map if it was a partial segment
-      if (segment.isPartial) {
-        this.partialSegments.delete(segment.id);
-      }
     } catch (error) {
       console.error(`Error playing audio for segment ${segment.id}:`, error);
       segment.status = SegmentStatus.ERROR;
@@ -538,7 +478,6 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
     
     this.processing = false;
     this.audioQueue = [];
-    this.partialSegments.clear();
   }
 }
 
