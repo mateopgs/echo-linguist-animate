@@ -1,4 +1,3 @@
-
 import * as sdk from "microsoft-cognitiveservices-speech-sdk";
 import { AzureConfig, VoiceOption } from "../types/voice-assistant";
 import { EventEmitter } from "../utils/eventEmitter";
@@ -50,11 +49,7 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
   private isCapturingWhileSpeaking: boolean = false;
   private initialSilenceTimeoutMs: number = 5000; // default initial silence timeout in ms
   private endSilenceTimeoutMs: number = 500; // default end silence timeout in ms
-<<<<<<< HEAD
-  private currentVoice: VoiceOption | null = null; // Añadida esta propiedad para corregir el error
-=======
   private currentVoice: VoiceOption | null = null;
->>>>>>> 5b7191a (feat: Add currentVoice property to RealTimeTranslationService)
 
   constructor() {
     super();
