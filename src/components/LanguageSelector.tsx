@@ -16,6 +16,13 @@ const LanguageSelector: React.FC<LanguageSelectorProps> = ({
   onChange,
   label,
 }) => {
+  // Función para obtener el nombre de visualización del idioma
+  const getDisplayName = (language: SupportedLanguages) => {
+    return language.nativeName ? 
+      `${language.name} (${language.nativeName})` : 
+      language.name;
+  };
+
   return (
     <div className="space-y-2">
       <label className="text-sm font-medium text-voiceAssistant-text">{label}</label>
@@ -26,7 +33,7 @@ const LanguageSelector: React.FC<LanguageSelectorProps> = ({
         <SelectContent>
           {languages.map((language) => (
             <SelectItem key={language.code} value={language.code}>
-              {language.name} ({language.nativeName})
+              {getDisplayName(language)}
             </SelectItem>
           ))}
         </SelectContent>

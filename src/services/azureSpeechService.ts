@@ -3,10 +3,7 @@ import { AzureConfig, SupportedLanguages, VoiceOption } from "../types/voice-ass
 
 const defaultLanguages = [
   { code: "en-US", name: "English", nativeName: "English" },
-  { code: "es-ES", name: "Spanish (Spain)", nativeName: "Español (España)" },
-  { code: "es-MX", name: "Spanish (Mexico)", nativeName: "Español (México)" },
-  { code: "es-AR", name: "Spanish (Argentina)", nativeName: "Español (Argentina)" },
-  { code: "es-CO", name: "Spanish (Colombia)", nativeName: "Español (Colombia)" },
+  { code: "es-ES", name: "Spanish", nativeName: "Español" },
   { code: "fr-FR", name: "French", nativeName: "Français" },
   { code: "de-DE", name: "German", nativeName: "Deutsch" },
   { code: "it-IT", name: "Italian", nativeName: "Italiano" },
@@ -19,20 +16,10 @@ const defaultLanguages = [
 
 // Voces predeterminadas para los idiomas principales
 const defaultVoices: VoiceOption[] = [
-  // Español - España
+  // Español
   { id: "es-ES-ElviraNeural", name: "Elvira", gender: "Female", isNeural: true },
   { id: "es-ES-AlvaroNeural", name: "Alvaro", gender: "Male", isNeural: true },
   { id: "es-ES-AbrilNeural", name: "Abril", gender: "Female", isNeural: true },
-  // Español - México
-  { id: "es-MX-DaliaNeural", name: "Dalia", gender: "Female", isNeural: true },
-  { id: "es-MX-JorgeNeural", name: "Jorge", gender: "Male", isNeural: true },
-  { id: "es-MX-BeatrizNeural", name: "Beatriz", gender: "Female", isNeural: true },
-  // Español - Argentina
-  { id: "es-AR-ElenaNeural", name: "Elena", gender: "Female", isNeural: true },
-  { id: "es-AR-TomasNeural", name: "Tomas", gender: "Male", isNeural: true },
-  // Español - Colombia
-  { id: "es-CO-GonzaloNeural", name: "Gonzalo", gender: "Male", isNeural: true },
-  { id: "es-CO-SalomeNeural", name: "Salome", gender: "Female", isNeural: true },
   // Inglés - EEUU
   { id: "en-US-JennyNeural", name: "Jenny", gender: "Female", isNeural: true },
   { id: "en-US-GuyNeural", name: "Guy", gender: "Male", isNeural: true },
