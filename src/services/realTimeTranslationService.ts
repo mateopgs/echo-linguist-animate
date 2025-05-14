@@ -1,3 +1,4 @@
+
 import * as sdk from "microsoft-cognitiveservices-speech-sdk";
 import { AzureConfig, VoiceOption } from "../types/voice-assistant";
 import { EventEmitter } from "../utils/eventEmitter";
@@ -20,7 +21,8 @@ export interface AudioSegment {
   originalText?: string;
   translatedText?: string;
   audioData?: ArrayBuffer;
-  isPartial?: boolean; // Nuevo campo para marcar segmentos parciales
+  isPartial?: boolean; // Para marcar segmentos parciales
+  processed?: boolean; // Flag para evitar repetición
 }
 
 export interface TranslationEvents {
@@ -53,6 +55,7 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
   private currentVoice: VoiceOption | null = null;
   private voiceSpeed: number = 1.1; // Velocidad por defecto
   private partialSegments: Map<number, AudioSegment> = new Map(); // Mapa para seguimiento de segmentos parciales
+  private processedTexts: Set<string> = new Set(); // Set para controlar textos ya procesados
 
   constructor() {
     super();
@@ -125,6 +128,7 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
     this.audioQueue = [];
     this.segmentCounter = 0;
     this.partialSegments.clear(); // Limpiar segmentos parciales al iniciar
+    this.processedTexts.clear(); // Limpiar textos procesados al iniciar
     
     try {
       // Create translation recognizer
@@ -137,7 +141,6 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
       translationConfig.addTargetLanguage(this.targetLanguage.split('-')[0]);
 
       // Configure for continuous recognition with segmentation
-      // Reducir tiempos de espera para mayor rapidez
       translationConfig.setProperty(
         sdk.PropertyId.SpeechServiceConnection_InitialSilenceTimeoutMs,
         this.initialSilenceTimeoutMs.toString()
@@ -162,33 +165,38 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
         if (this.currentlyPlaying && !this.isCapturingWhileSpeaking) return;
         
         if (event.result && event.result.reason === sdk.ResultReason.TranslatingSpeech) {
-          // Esto es reconocimiento provisional - lo usaremos para síntesis temprana
-          console.log("Recognizing:", event.result.text);
-          
           const targetLang = this.targetLanguage.split('-')[0];
           const partialTranslation = event.result.translations?.get(targetLang) || "";
           
           if (event.result.text.trim() !== "" && partialTranslation.trim() !== "") {
-            // Crear o actualizar un segmento parcial para sintetizar temprano
-            const tempSegmentId = -1 * Date.now(); // ID negativo temporal para no confundir con segmentos reales
+            // Verificar si este texto ya ha sido procesado para evitar duplicación
+            const partialKey = `${event.result.text}_${partialTranslation}`;
             
-            const tempSegment: AudioSegment = {
-              id: tempSegmentId,
-              timestamp: Date.now(),
-              status: SegmentStatus.RECOGNIZING,
-              originalText: event.result.text,
-              translatedText: partialTranslation,
-              isPartial: true // Marcar como parcial
-            };
-            
-            // Emitir evento para actualizar UI y comenzar síntesis temprana
-            this.emit("segmentUpdated", tempSegment);
-            
-            // Iniciar síntesis temprana si el texto tiene suficiente contenido
-            // y no tenemos una síntesis en curso para este segmento parcial
-            if (partialTranslation.length > 5 && !this.partialSegments.has(tempSegmentId)) {
-              this.partialSegments.set(tempSegmentId, tempSegment);
-              this.synthesizeEarlySegment(tempSegment);
+            if (!this.processedTexts.has(partialKey)) {
+              // Crear un ID negativo único para cada nuevo reconocimiento parcial
+              const tempSegmentId = -1 * Date.now();
+              
+              const tempSegment: AudioSegment = {
+                id: tempSegmentId,
+                timestamp: Date.now(),
+                status: SegmentStatus.RECOGNIZING,
+                originalText: event.result.text,
+                translatedText: partialTranslation,
+                isPartial: true,
+                processed: false
+              };
+              
+              console.log(`Nuevo reconocimiento parcial: "${event.result.text}" -> "${partialTranslation}"`);
+              this.emit("segmentUpdated", tempSegment);
+              
+              // Marcar como procesado
+              this.processedTexts.add(partialKey);
+              
+              // Solo sintetizar si el texto tiene suficiente contenido y no se ha sintetizado antes
+              if (partialTranslation.length > 3 && !this.partialSegments.has(tempSegmentId)) {
+                this.partialSegments.set(tempSegmentId, tempSegment);
+                this.synthesizeEarlySegment(tempSegment);
+              }
             }
           }
         }
@@ -197,35 +205,44 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
       // Handle final recognition results with translation
       this.translationRecognizer.recognized = (_, event) => {
         if (event.result) {
-          console.log("Recognition result reason:", event.result.reason);
-          console.log("Recognition result text:", event.result.text);
           
           if (
             event.result.reason === sdk.ResultReason.TranslatedSpeech &&
             event.result.text.trim() !== ""
           ) {
-            // Create a new segment
             const segmentId = this.segmentCounter++;
             const targetLang = this.targetLanguage.split('-')[0];
             const translation = event.result.translations?.get(targetLang);
             
-            console.log("Received translation:", translation);
+            // Verificar si este texto ya ha sido procesado como parcial
+            const finalKey = `${event.result.text}_${translation}`;
             
-            const segment: AudioSegment = {
-              id: segmentId,
-              timestamp: Date.now(),
-              status: SegmentStatus.TRANSLATING,
-              originalText: event.result.text,
-              translatedText: translation || "",
-              isPartial: false // Este es un segmento completo
-            };
-            
-            // Add to processing queue and emit event
-            this.audioQueue.push(segment);
-            this.emit("segmentCreated", segment);
-            
-            // Synthesize the translation immediately
-            this.synthesizeSegment(segment);
+            // Solo crear un nuevo segmento si este texto final no se ha procesado antes
+            if (!this.processedTexts.has(finalKey)) {
+              console.log(`Reconocimiento final: "${event.result.text}" -> "${translation}"`);
+              
+              const segment: AudioSegment = {
+                id: segmentId,
+                timestamp: Date.now(),
+                status: SegmentStatus.TRANSLATING,
+                originalText: event.result.text,
+                translatedText: translation || "",
+                isPartial: false,
+                processed: false
+              };
+              
+              // Add to processing queue and emit event
+              this.audioQueue.push(segment);
+              this.emit("segmentCreated", segment);
+              
+              // Marcar como procesado
+              this.processedTexts.add(finalKey);
+              
+              // Synthesize the translation immediately
+              this.synthesizeSegment(segment);
+            } else {
+              console.log(`Omitiendo texto ya procesado: "${event.result.text}"`);
+            }
           }
         }
       };
@@ -305,33 +322,18 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
       clearInterval(this.captureTimer);
     }
     
-    // Reducir el intervalo para una segmentación más frecuente
+    // Usar un intervalo más grande para evitar segmentación excesiva
     this.captureTimer = setInterval(() => {
       if (this.currentlyPlaying && this.isCapturingWhileSpeaking && this.translationRecognizer) {
         console.log("Forcing segment creation while speaking");
-        // Create a one-time event handler for the next recognition
-        const originalHandler = this.translationRecognizer.recognized;
         
-        // Store the original handler and set up a temporary wrapper
-        if (originalHandler) {
-          const tempHandler = (sender: sdk.TranslationRecognizer, event: sdk.TranslationRecognitionEventArgs) => {
-            // Call the original handler
-            originalHandler(sender, event);
-            
-            // Log the forced segment
-            console.log("Forced segment recognition:", event.result?.text);
-            
-            // Remove our temporary handler by restoring the original
-            if (this.translationRecognizer) {
-              this.translationRecognizer.recognized = originalHandler;
-            }
-          };
-          
-          // Replace with our temporary handler
-          this.translationRecognizer.recognized = tempHandler;
+        // Limpiar mapas de control para permitir nuevos segmentos
+        if (this.processedTexts.size > 100) {
+          console.log("Limpiando caché de textos procesados...");
+          this.processedTexts.clear();
         }
       }
-    }, Math.min(this.segmentInterval, 200)); // Usar un valor más bajo para mayor responsividad
+    }, Math.max(this.segmentInterval, 700)); // Intervalo mínimo para evitar segmentación excesiva
   }
   
   // Stop the periodic segmentation timer
@@ -342,14 +344,15 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
     }
   }
 
-  // Nuevo método para sintetizar segmentos parciales tempranamente
+  // Método para sintetizar segmentos parciales tempranamente
   private async synthesizeEarlySegment(segment: AudioSegment): Promise<void> {
-    if (!this.config || !segment.translatedText || !segment.isPartial) {
+    if (!this.config || !segment.translatedText || !segment.isPartial || segment.processed) {
       return;
     }
     
     try {
-      console.log(`Sintetizando segmento parcial temprano: "${segment.translatedText}"`);
+      console.log(`Sintetizando segmento parcial: "${segment.translatedText}"`);
+      segment.processed = true; // Marcar como procesado para evitar repeticiones
       
       // Configurar sintetizador de voz
       const speechConfig = sdk.SpeechConfig.fromSubscription(
@@ -405,20 +408,20 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
       
     } catch (error) {
       console.error("Error synthesizing early segment:", error);
-      // No emitimos errores para segmentos parciales para evitar notificaciones molestas
       this.partialSegments.delete(segment.id);
     }
   }
 
   // Process the segment through the TTS pipeline
   private async synthesizeSegment(segment: AudioSegment): Promise<void> {
-    if (!this.config || !segment.translatedText) {
-      console.error("Cannot synthesize - missing config or translated text");
+    if (!this.config || !segment.translatedText || segment.processed) {
+      console.error("Cannot synthesize - missing config, translated text, or already processed");
       return;
     }
     
     try {
       segment.status = SegmentStatus.SYNTHESIZING;
+      segment.processed = true; // Marcar como procesado para evitar re-sintetizar
       this.emit("segmentUpdated", segment);
       console.log(`Synthesizing segment ${segment.id}: "${segment.translatedText}"`);
       
@@ -435,7 +438,7 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
         console.log(`Using voice for synthesis: ${this.currentVoice.name} (${this.currentVoice.id})`);
       }
       
-      // Remove the problematic property and use other optimization settings
+      // Optimización de configuración para síntesis
       speechConfig.setProperty(sdk.PropertyId.SpeechServiceConnection_SynthOutputFormat, "audio-16khz-32kbitrate-mono-mp3");
       
       // Use pull stream so SDK does not auto-play audio
@@ -548,7 +551,7 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
       
       // Check for more segments to play
       console.log("Checking for more segments to play");
-      setTimeout(() => this.playNextInQueue(), 10); // Reducido de 10ms para respuesta más rápida
+      setTimeout(() => this.playNextInQueue(), 100); // Pequeña pausa entre segmentos
     }
   }
 
@@ -609,6 +612,7 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
     this.processing = false;
     this.audioQueue = [];
     this.partialSegments.clear();
+    this.processedTexts.clear();
   }
 }
 
