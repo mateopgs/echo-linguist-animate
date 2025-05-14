@@ -1,3 +1,4 @@
+
 import React, { useEffect } from "react";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
@@ -52,6 +53,15 @@ const VoiceAssistant: React.FC = () => {
     console.log("Current transcription:", currentTranscription);
     console.log("Real-time mode:", isRealTimeMode);
   }, [state, activeSegments, currentTranscription, isRealTimeMode]);
+
+  // Filtrar segmentos parciales para mostrarlos primero, seguidos de los completos
+  const sortedSegments = [...activeSegments].sort((a, b) => {
+    // Priorizar segmentos parciales que están siendo procesados
+    if (a.isPartial && !b.isPartial) return -1;
+    if (!a.isPartial && b.isPartial) return 1;
+    // Luego ordenar por timestamp (más recientes primero)
+    return b.timestamp - a.timestamp;
+  });
 
   return (
     <Card className="w-full max-w-full sm:max-w-md md:max-w-2xl mx-auto shadow-lg">
@@ -125,11 +135,10 @@ const VoiceAssistant: React.FC = () => {
           </div>
         </div>
 
-        {/* TranscriptionDisplay removed to reserve space for dynamic segments */}
-
+        {/* Se muestran ahora segmentos parciales inmediatamente, junto con los completos */}
         {isRealTimeMode && (
           <ActiveSegmentsList
-            segments={activeSegments}
+            segments={sortedSegments}
             sourceLanguageName={getLanguageName(sourceLanguage)}
             targetLanguageName={getLanguageName(targetLanguage)}
           />
