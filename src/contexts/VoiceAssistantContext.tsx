@@ -38,6 +38,8 @@ type VoiceAssistantContextType = {
   availableVoices: VoiceOption[];
   selectedVoice: VoiceOption | null;
   setSelectedVoice: (voice: VoiceOption) => void;
+  voiceSpeed: number;
+  setVoiceSpeed: (speed: number) => void;
 };
 
 const VoiceAssistantContext = createContext<VoiceAssistantContextType | null>(null);
@@ -73,6 +75,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
   const [endSilenceTimeout, setEndSilenceTimeout] = useState(500); // Silence detection end timeout (ms)
   const [availableVoices, setAvailableVoices] = useState<VoiceOption[]>([]);
   const [selectedVoice, setSelectedVoice] = useState<VoiceOption | null>(null);
+  const [voiceSpeed, setVoiceSpeed] = useState(1.1); // Valor por defecto para velocidad de la voz
   const { toast } = useToast();
 
   // Monitorear cambios importantes con logs
@@ -87,6 +90,13 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
   useEffect(() => {
     console.log("Capturing while speaking changed:", isCapturingWhileSpeaking);
   }, [isCapturingWhileSpeaking]);
+  
+  // Monitorear cambios en la velocidad de voz
+  useEffect(() => {
+    console.log("Voice speed changed:", voiceSpeed);
+    azureSpeechService.setVoiceSpeed(voiceSpeed);
+    realTimeTranslationService.setVoiceSpeed(voiceSpeed);
+  }, [voiceSpeed]);
 
   // Apply segment interval to the service when it changes
   useEffect(() => {
@@ -501,7 +511,9 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
         setEndSilenceTimeout,
         availableVoices,
         selectedVoice,
-        setSelectedVoice
+        setSelectedVoice,
+        voiceSpeed,
+        setVoiceSpeed
       }}
     >
       {children}

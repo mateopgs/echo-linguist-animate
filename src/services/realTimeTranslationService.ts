@@ -50,6 +50,7 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
   private initialSilenceTimeoutMs: number = 5000; // default initial silence timeout in ms
   private endSilenceTimeoutMs: number = 500; // default end silence timeout in ms
   private currentVoice: VoiceOption | null = null;
+  private voiceSpeed: number = 1.1; // Velocidad por defecto
 
   constructor() {
     super();
@@ -77,6 +78,11 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
   public setVoice(voice: VoiceOption) {
     this.currentVoice = voice;
     console.log(`Real-time Translation Service voice set to: ${voice.name} (${voice.id})`);
+  }
+  
+  public setVoiceSpeed(speed: number) {
+    this.voiceSpeed = speed;
+    console.log(`Real-time Translation Service voice speed set to: ${speed}x`);
   }
   
   public setSegmentDuration(durationMs: number) {
@@ -447,8 +453,9 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
       const sourceNode = this.audioContext.createBufferSource();
       sourceNode.buffer = audioBuffer;
       
-      // Aumentar la velocidad de reproducción para una experiencia más rápida
-      sourceNode.playbackRate.value = 1.1; // 10% más rápido
+      // Usar la velocidad de voz configurada
+      sourceNode.playbackRate.value = this.voiceSpeed; 
+      console.log(`Playback rate set to: ${this.voiceSpeed}x`);
       
       sourceNode.connect(this.audioContext.destination);
       

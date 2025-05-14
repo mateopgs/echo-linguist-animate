@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { Switch } from "./ui/switch";
 import { Label } from "./ui/label";
@@ -6,6 +7,7 @@ import { useVoiceAssistant } from "../contexts/VoiceAssistantContext";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "./ui/tooltip";
+import { Slider } from "./ui/slider";
 
 const ConfigForm: React.FC = () => {
   const {
@@ -22,7 +24,9 @@ const ConfigForm: React.FC = () => {
     availableVoices,
     selectedVoice,
     setSelectedVoice,
-    targetLanguage
+    targetLanguage,
+    voiceSpeed,
+    setVoiceSpeed
   } = useVoiceAssistant();
 
   const handleIntervalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -50,6 +54,11 @@ const ConfigForm: React.FC = () => {
     const langCode = targetLanguage.split('-')[0];
     return availableVoices.filter(voice => voice.id.startsWith(langCode));
   }, [availableVoices, targetLanguage]);
+
+  // Manejar cambio de velocidad de voz
+  const handleVoiceSpeedChange = (value: number[]) => {
+    setVoiceSpeed(value[0]);
+  };
 
   return (
     <Card className="w-full max-w-md mx-auto">
@@ -119,6 +128,19 @@ const ConfigForm: React.FC = () => {
                 className="w-3/4"
               />
               <span className="text-xs text-gray-500">Tiempo de silencio para marcar fin de segmento.</span>
+            </div>
+            <div className="flex flex-col items-center justify-center space-y-1 w-full">
+              <Label htmlFor="voice-speed">Velocidad de voz: {voiceSpeed.toFixed(1)}x</Label>
+              <Slider 
+                id="voice-speed"
+                min={0.5}
+                max={2.0}
+                step={0.1}
+                value={[voiceSpeed]} 
+                onValueChange={handleVoiceSpeedChange}
+                className="w-3/4"
+              />
+              <span className="text-xs text-gray-500">Ajusta la velocidad de reproducción de la voz (0.5x - 2.0x)</span>
             </div>
           </TabsContent>
           

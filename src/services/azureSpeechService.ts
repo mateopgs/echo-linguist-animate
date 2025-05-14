@@ -1,4 +1,3 @@
-
 import * as sdk from "microsoft-cognitiveservices-speech-sdk";
 import { AzureConfig, SupportedLanguages, VoiceOption } from "../types/voice-assistant";
 
@@ -71,6 +70,7 @@ class AzureSpeechService {
   private audioContext: AudioContext | null = null;
   private sourceNode: AudioBufferSourceNode | null = null;
   private currentVoice: VoiceOption | null = null;
+  private voiceSpeed: number = 1.1; // Velocidad por defecto
 
   public setConfig(config: AzureConfig) {
     this.config = config;
@@ -97,6 +97,11 @@ class AzureSpeechService {
   public setVoice(voice: VoiceOption) {
     this.currentVoice = voice;
     console.log("Voice set to:", voice);
+  }
+
+  public setVoiceSpeed(speed: number) {
+    this.voiceSpeed = speed;
+    console.log("Voice speed set to:", speed);
   }
 
   public async startRecognition(
@@ -236,8 +241,9 @@ class AzureSpeechService {
       this.sourceNode = this.audioContext.createBufferSource();
       this.sourceNode.buffer = audioBuffer;
       
-      // Aumentar la velocidad de reproducción
-      this.sourceNode.playbackRate.value = 1.1; // 10% más rápido
+      // Usar la velocidad de reproducción configurada
+      this.sourceNode.playbackRate.value = this.voiceSpeed;
+      console.log(`Playback rate set to: ${this.voiceSpeed}x`);
       
       this.sourceNode.connect(this.audioContext.destination);
       
