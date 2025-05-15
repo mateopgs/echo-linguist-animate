@@ -2,7 +2,7 @@
 import React, { useEffect } from "react";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
-import { Mic, MicOff, Volume, Settings } from "lucide-react";
+import { Mic, MicOff, Volume, Settings, Sparkles } from "lucide-react";
 import { useVoiceAssistant } from "../contexts/VoiceAssistantContext";
 import { AssistantState } from "../types/voice-assistant";
 import AudioVisualizer from "./AudioVisualizer";
@@ -29,7 +29,8 @@ const VoiceAssistant: React.FC = () => {
     isCapturingWhileSpeaking,
     setCapturingWhileSpeaking,
     segmentInterval,
-    setSegmentInterval
+    setSegmentInterval,
+    useAIEnhancement
   } = useVoiceAssistant();
 
   const handleToggleListen = () => {
@@ -76,6 +77,12 @@ const VoiceAssistant: React.FC = () => {
               alt="Traduce AI Logo" 
               className="h-6 sm:h-8 md:h-10 mr-2"
             />
+            {useAIEnhancement && (
+              <span className="flex items-center text-xs sm:text-sm bg-violet-700 px-1.5 py-0.5 rounded-md">
+                <Sparkles size={12} className="mr-1" />
+                AI Enhanced
+              </span>
+            )}
           </div>
           <Dialog>
             <DialogTrigger asChild>
@@ -130,7 +137,12 @@ const VoiceAssistant: React.FC = () => {
               (isRealTimeMode && isCapturingWhileSpeaking
                 ? "Playing translation (still capturing)"
                 : "Speaking...")}
-            {state === AssistantState.PROCESSING && "Processing..."}
+            {state === AssistantState.PROCESSING && (
+              <span className="flex items-center justify-center">
+                <Sparkles size={14} className="mr-1 text-violet-500" />
+                "Enhancing translation with AI..."
+              </span>
+            )}
             {state === AssistantState.ERROR && "Error occurred"}
           </div>
         </div>
