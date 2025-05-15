@@ -17,37 +17,37 @@ const defaultLanguages = [
 // Voces predeterminadas para los idiomas principales
 const defaultVoices: VoiceOption[] = [
   // Español
-  { id: "es-ES-ElviraNeural", name: "Elvira", gender: "Female", isNeural: true },
-  { id: "es-ES-AlvaroNeural", name: "Alvaro", gender: "Male", isNeural: true },
-  { id: "es-ES-AbrilNeural", name: "Abril", gender: "Female", isNeural: true },
+  { id: "es-ES-ElviraNeural", name: "Elvira", gender: "Female", isNeural: true, locale: "es-ES" },
+  { id: "es-ES-AlvaroNeural", name: "Alvaro", gender: "Male", isNeural: true, locale: "es-ES" },
+  { id: "es-ES-AbrilNeural", name: "Abril", gender: "Female", isNeural: true, locale: "es-ES" },
   // Inglés - EEUU
-  { id: "en-US-JennyNeural", name: "Jenny", gender: "Female", isNeural: true },
-  { id: "en-US-GuyNeural", name: "Guy", gender: "Male", isNeural: true },
-  { id: "en-US-AriaNeural", name: "Aria", gender: "Female", isNeural: true },
+  { id: "en-US-JennyNeural", name: "Jenny", gender: "Female", isNeural: true, locale: "en-US" },
+  { id: "en-US-GuyNeural", name: "Guy", gender: "Male", isNeural: true, locale: "en-US" },
+  { id: "en-US-AriaNeural", name: "Aria", gender: "Female", isNeural: true, locale: "en-US" },
   // Francés
-  { id: "fr-FR-DeniseNeural", name: "Denise", gender: "Female", isNeural: true },
-  { id: "fr-FR-HenriNeural", name: "Henri", gender: "Male", isNeural: true },
+  { id: "fr-FR-DeniseNeural", name: "Denise", gender: "Female", isNeural: true, locale: "fr-FR" },
+  { id: "fr-FR-HenriNeural", name: "Henri", gender: "Male", isNeural: true, locale: "fr-FR" },
   // Alemán
-  { id: "de-DE-KatjaNeural", name: "Katja", gender: "Female", isNeural: true },
-  { id: "de-DE-ConradNeural", name: "Conrad", gender: "Male", isNeural: true },
+  { id: "de-DE-KatjaNeural", name: "Katja", gender: "Female", isNeural: true, locale: "de-DE" },
+  { id: "de-DE-ConradNeural", name: "Conrad", gender: "Male", isNeural: true, locale: "de-DE" },
   // Italiano
-  { id: "it-IT-IsabellaNeural", name: "Isabella", gender: "Female", isNeural: true },
-  { id: "it-IT-DiegoNeural", name: "Diego", gender: "Male", isNeural: true },
+  { id: "it-IT-IsabellaNeural", name: "Isabella", gender: "Female", isNeural: true, locale: "it-IT" },
+  { id: "it-IT-DiegoNeural", name: "Diego", gender: "Male", isNeural: true, locale: "it-IT" },
   // Portugués
-  { id: "pt-BR-FranciscaNeural", name: "Francisca", gender: "Female", isNeural: true },
-  { id: "pt-BR-AntonioNeural", name: "Antonio", gender: "Male", isNeural: true },
+  { id: "pt-BR-FranciscaNeural", name: "Francisca", gender: "Female", isNeural: true, locale: "pt-BR" },
+  { id: "pt-BR-AntonioNeural", name: "Antonio", gender: "Male", isNeural: true, locale: "pt-BR" },
   // Japonés
-  { id: "ja-JP-NanamiNeural", name: "Nanami", gender: "Female", isNeural: true },
-  { id: "ja-JP-KeitaNeural", name: "Keita", gender: "Male", isNeural: true },
+  { id: "ja-JP-NanamiNeural", name: "Nanami", gender: "Female", isNeural: true, locale: "ja-JP" },
+  { id: "ja-JP-KeitaNeural", name: "Keita", gender: "Male", isNeural: true, locale: "ja-JP" },
   // Chino
-  { id: "zh-CN-XiaoxiaoNeural", name: "Xiaoxiao", gender: "Female", isNeural: true },
-  { id: "zh-CN-YunxiNeural", name: "Yunxi", gender: "Male", isNeural: true },
+  { id: "zh-CN-XiaoxiaoNeural", name: "Xiaoxiao", gender: "Female", isNeural: true, locale: "zh-CN" },
+  { id: "zh-CN-YunxiNeural", name: "Yunxi", gender: "Male", isNeural: true, locale: "zh-CN" },
   // Ruso
-  { id: "ru-RU-SvetlanaNeural", name: "Svetlana", gender: "Female", isNeural: true },
-  { id: "ru-RU-DmitryNeural", name: "Dmitry", gender: "Male", isNeural: true },
+  { id: "ru-RU-SvetlanaNeural", name: "Svetlana", gender: "Female", isNeural: true, locale: "ru-RU" },
+  { id: "ru-RU-DmitryNeural", name: "Dmitry", gender: "Male", isNeural: true, locale: "ru-RU" },
   // Coreano
-  { id: "ko-KR-SunHiNeural", name: "SunHi", gender: "Female", isNeural: true },
-  { id: "ko-KR-InJoonNeural", name: "InJoon", gender: "Male", isNeural: true },
+  { id: "ko-KR-SunHiNeural", name: "SunHi", gender: "Female", isNeural: true, locale: "ko-KR" },
+  { id: "ko-KR-InJoonNeural", name: "InJoon", gender: "Male", isNeural: true, locale: "ko-KR" },
 ];
 
 class AzureSpeechService {
