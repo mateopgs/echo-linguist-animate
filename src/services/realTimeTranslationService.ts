@@ -54,8 +54,8 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
   private endSilenceTimeoutMs: number = 500; // default end silence timeout in ms
   private currentVoice: VoiceOption | null = null;
   private voiceSpeed: number = 1.1; // Velocidad por defecto
-  private partialSegments: Map<number, AudioSegment> = new Map(); // Mapa para seguimiento de segmentos parciales
   private processedTexts: Set<string> = new Set(); // Set para controlar textos ya procesados
+  private playbackQueue: Promise<void> = Promise.resolve(); // Cola para reproducción secuencial
 
   constructor() {
     super();
@@ -127,8 +127,8 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
     this.processing = true;
     this.audioQueue = [];
     this.segmentCounter = 0;
-    this.partialSegments.clear(); // Limpiar segmentos parciales al iniciar
     this.processedTexts.clear(); // Limpiar textos procesados al iniciar
+    this.playbackQueue = Promise.resolve(); // Reiniciar cola de reproducción
     
     try {
       // Create translation recognizer
@@ -169,35 +169,21 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
           const partialTranslation = event.result.translations?.get(targetLang) || "";
           
           if (event.result.text.trim() !== "" && partialTranslation.trim() !== "") {
-            // Verificar si este texto ya ha sido procesado para evitar duplicación
-            const partialKey = `${event.result.text}_${partialTranslation}`;
+            // Usamos un ID constante para actualizar el mismo segmento temporal
+            const tempSegmentId = -1;
             
-            if (!this.processedTexts.has(partialKey)) {
-              // Crear un ID negativo único para cada nuevo reconocimiento parcial
-              const tempSegmentId = -1 * Date.now();
-              
-              const tempSegment: AudioSegment = {
-                id: tempSegmentId,
-                timestamp: Date.now(),
-                status: SegmentStatus.RECOGNIZING,
-                originalText: event.result.text,
-                translatedText: partialTranslation,
-                isPartial: true,
-                processed: false
-              };
-              
-              console.log(`Nuevo reconocimiento parcial: "${event.result.text}" -> "${partialTranslation}"`);
-              this.emit("segmentUpdated", tempSegment);
-              
-              // Marcar como procesado
-              this.processedTexts.add(partialKey);
-              
-              // Solo sintetizar si el texto tiene suficiente contenido y no se ha sintetizado antes
-              if (partialTranslation.length > 3 && !this.partialSegments.has(tempSegmentId)) {
-                this.partialSegments.set(tempSegmentId, tempSegment);
-                this.synthesizeEarlySegment(tempSegment);
-              }
-            }
+            // Enviamos actualizaciones solo para mostrar en UI, no para reproducción
+            const tempSegment: AudioSegment = {
+              id: tempSegmentId,
+              timestamp: Date.now(),
+              status: SegmentStatus.RECOGNIZING,
+              originalText: event.result.text,
+              translatedText: partialTranslation,
+              isPartial: true
+            };
+            
+            console.log(`Reconocimiento parcial: "${event.result.text}" -> "${partialTranslation}"`);
+            this.emit("segmentUpdated", tempSegment);
           }
         }
       };
@@ -214,7 +200,7 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
             const targetLang = this.targetLanguage.split('-')[0];
             const translation = event.result.translations?.get(targetLang);
             
-            // Verificar si este texto ya ha sido procesado como parcial
+            // Verificar si este texto ya ha sido procesado para evitar duplicación
             const finalKey = `${event.result.text}_${translation}`;
             
             // Solo crear un nuevo segmento si este texto final no se ha procesado antes
@@ -238,7 +224,7 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
               // Marcar como procesado
               this.processedTexts.add(finalKey);
               
-              // Synthesize the translation immediately
+              // Synthesize the translation when ready
               this.synthesizeSegment(segment);
             } else {
               console.log(`Omitiendo texto ya procesado: "${event.result.text}"`);
@@ -344,74 +330,6 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
     }
   }
 
-  // Método para sintetizar segmentos parciales tempranamente
-  private async synthesizeEarlySegment(segment: AudioSegment): Promise<void> {
-    if (!this.config || !segment.translatedText || !segment.isPartial || segment.processed) {
-      return;
-    }
-    
-    try {
-      console.log(`Sintetizando segmento parcial: "${segment.translatedText}"`);
-      segment.processed = true; // Marcar como procesado para evitar repeticiones
-      
-      // Configurar sintetizador de voz
-      const speechConfig = sdk.SpeechConfig.fromSubscription(
-        this.config.key,
-        this.config.region
-      );
-      speechConfig.speechSynthesisLanguage = this.targetLanguage;
-      
-      // Usar la voz seleccionada si está disponible
-      if (this.currentVoice) {
-        speechConfig.speechSynthesisVoiceName = this.currentVoice.id;
-      }
-      
-      // Optimizar para síntesis rápida
-      speechConfig.setProperty(sdk.PropertyId.SpeechServiceConnection_SynthOutputFormat, "audio-16khz-32kbitrate-mono-mp3");
-      
-      // Usar stream de extracción para que el SDK no reproduzca audio automáticamente
-      const pullStream = sdk.AudioOutputStream.createPullStream();
-      const audioConfig = sdk.AudioConfig.fromStreamOutput(pullStream);
-      const synthesizer = new sdk.SpeechSynthesizer(speechConfig, audioConfig);
-      
-      // Sintetizar el texto traducido parcial
-      const result = await new Promise<sdk.SpeechSynthesisResult>((resolve, reject) => {
-        synthesizer.speakTextAsync(
-          segment.translatedText!,
-          (result) => {
-            if (result && result.reason === sdk.ResultReason.SynthesizingAudioCompleted) {
-              resolve(result);
-            } else {
-              reject(new Error(`Speech synthesis failed: ${result?.reason}`));
-            }
-            synthesizer.close();
-          },
-          (error) => {
-            reject(error);
-            synthesizer.close();
-          }
-        );
-      });
-      
-      // Actualizar segmento con datos de audio
-      segment.audioData = result.audioData;
-      segment.status = SegmentStatus.PLAYING;
-      
-      // Emitir evento de actualización y preparar para reproducción
-      this.emit("segmentUpdated", segment);
-      
-      // Reproducir inmediatamente este segmento parcial
-      await this.playAudioWithPriority(segment.audioData);
-      
-      // Eliminar del mapa de segmentos parciales después de la reproducción
-      this.partialSegments.delete(segment.id);
-      
-    } catch (error) {
-      console.error("Error synthesizing early segment:", error);
-      this.partialSegments.delete(segment.id);
-    }
-  }
-
   // Process the segment through the TTS pipeline
   private async synthesizeSegment(segment: AudioSegment): Promise<void> {
     if (!this.config || !segment.translatedText || segment.processed) {
@@ -474,8 +392,8 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
       this.emit("segmentUpdated", segment);
       console.log(`Audio data ready for segment ${segment.id}, size: ${result.audioData.byteLength} bytes`);
       
-      // Queue for playback
-      this.playNextInQueue();
+      // Queue for sequential playback
+      this.queueSegmentForPlayback(segment);
     } catch (error) {
       console.error("Error synthesizing speech:", error);
       segment.status = SegmentStatus.ERROR;
@@ -483,76 +401,44 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
     }
   }
 
-  // Reproducir audio con prioridad para segmentos parciales
-  private async playAudioWithPriority(audioData: ArrayBuffer): Promise<void> {
-    if (!this.audioContext) {
-      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-    }
-
-    try {
-      const audioBuffer = await this.audioContext.decodeAudioData(audioData);
-      const sourceNode = this.audioContext.createBufferSource();
-      sourceNode.buffer = audioBuffer;
-      sourceNode.playbackRate.value = this.voiceSpeed;
-      sourceNode.connect(this.audioContext.destination);
-      
-      // Reproducir sin marcar como currentlyPlaying para no bloquear la cola principal
-      return new Promise<void>((resolve) => {
-        sourceNode.onended = () => {
-          resolve();
-        };
-        sourceNode.start(0);
-      });
-    } catch (error) {
-      console.error("Error playing priority audio:", error);
-      throw error;
-    }
-  }
-
-  // Play segments in chronological order
-  private async playNextInQueue(): Promise<void> {
-    if (this.currentlyPlaying) {
-      console.log("Already playing audio, will play next segment when current completes");
+  // Agregar segmento a la cola de reproducción secuencial
+  private queueSegmentForPlayback(segment: AudioSegment): void {
+    if (!segment.audioData) {
+      console.error(`Segment ${segment.id} has no audio data to play`);
       return;
     }
     
-    if (this.audioQueue.length === 0) {
-      console.log("Audio queue is empty, nothing to play");
-      return;
-    }
+    console.log(`Queuing segment ${segment.id} for playback`);
     
-    // Ensure strict chronological order: sort and pick the first segment only
-    this.audioQueue.sort((a, b) => a.timestamp - b.timestamp);
-    const segment = this.audioQueue[0];
-    if (segment.status !== SegmentStatus.PLAYING || !segment.audioData) {
-      console.log("Earliest segment not ready for playback yet");
-      return;
-    }
-
-    console.log(`Playing segment ${segment.id}: "${segment.translatedText}"`);
-    this.currentlyPlaying = true;
-
-    try {
-      await this.playAudio(segment.audioData!);
+    // Agregar a la cola de reproducción secuencial
+    this.playbackQueue = this.playbackQueue.then(async () => {
+      if (!segment.audioData) return;
       
-      // Mark as completed
-      segment.status = SegmentStatus.COMPLETED;
-      this.emit("segmentCompleted", segment);
-      console.log(`Playback completed for segment ${segment.id}`);
+      console.log(`Playing segment ${segment.id} from queue`);
+      this.currentlyPlaying = true;
       
-      // Remove completed segment from queue
-      this.audioQueue.shift();
-    } catch (error) {
-      console.error(`Error playing audio for segment ${segment.id}:`, error);
-      segment.status = SegmentStatus.ERROR;
-      this.emit("segmentError", { segment, error: error as Error });
-    } finally {
+      try {
+        await this.playAudio(segment.audioData);
+        
+        // Marcar como completado después de reproducirse
+        segment.status = SegmentStatus.COMPLETED;
+        this.emit("segmentCompleted", segment);
+        console.log(`Playback completed for segment ${segment.id}`);
+        
+        // Eliminar de la cola de audio una vez completado
+        this.audioQueue = this.audioQueue.filter(s => s.id !== segment.id);
+      } catch (error) {
+        console.error(`Error playing segment ${segment.id}:`, error);
+        segment.status = SegmentStatus.ERROR;
+        this.emit("segmentError", { segment, error: error as Error });
+      } finally {
+        this.currentlyPlaying = false;
+        console.log(`Playback queue continues, segments remaining: ${this.audioQueue.length}`);
+      }
+    }).catch(error => {
+      console.error("Error in playback queue:", error);
       this.currentlyPlaying = false;
-      
-      // Check for more segments to play
-      console.log("Checking for more segments to play");
-      setTimeout(() => this.playNextInQueue(), 100); // Pequeña pausa entre segmentos
-    }
+    });
   }
 
   private async playAudio(audioData: ArrayBuffer): Promise<void> {
@@ -611,8 +497,8 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
     
     this.processing = false;
     this.audioQueue = [];
-    this.partialSegments.clear();
     this.processedTexts.clear();
+    this.playbackQueue = Promise.resolve();
   }
 }
 
