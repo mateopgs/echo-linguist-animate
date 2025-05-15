@@ -166,6 +166,7 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
         if (this.currentlyPlaying && !this.isCapturingWhileSpeaking) return;
 
         if (event.result && event.result.reason === sdk.ResultReason.TranslatingSpeech) {
+<<<<<<< HEAD
           const partialText = event.result.text.trim();
           const partialTranslation = event.result.translations?.get(this.targetLanguage.split('-')[0]) || "";
           if (partialText) {
@@ -188,6 +189,26 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
 >>>>>>> 6b34e47 (:construction:)
 =======
 >>>>>>> 328af26 (Reverted to commit 6b34e473bb248a2e97598a4111ceb03ba5af0012)
+=======
+          const targetLang = this.targetLanguage.split('-')[0];
+          const partialTranslation = event.result.translations?.get(targetLang) || "";
+          
+          if (event.result.text.trim() !== "" && partialTranslation.trim() !== "") {
+            // Usamos un ID constante para actualizar el mismo segmento temporal
+            const tempSegmentId = -1;
+            
+            // Enviamos actualizaciones solo para mostrar en UI, no para reproducción
+            const tempSegment: AudioSegment = {
+              id: tempSegmentId,
+              timestamp: Date.now(),
+              status: SegmentStatus.RECOGNIZING,
+              originalText: event.result.text,
+              translatedText: partialTranslation,
+              isPartial: true
+            };
+            
+            console.log(`Reconocimiento parcial: "${event.result.text}" -> "${partialTranslation}"`);
+>>>>>>> 3b39e77 (Fix: Improve audio synthesis and segment handling)
             this.emit("segmentUpdated", tempSegment);
           }
         }
@@ -195,6 +216,7 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
 
       // Handle final recognition results with translation
       this.translationRecognizer.recognized = (_, event) => {
+<<<<<<< HEAD
         if (event.result && event.result.reason === sdk.ResultReason.TranslatedSpeech) {
           const originalText = event.result.text.trim();
           const translatedText = event.result.translations?.get(this.targetLanguage.split('-')[0]) || "";
@@ -203,6 +225,47 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
           if (this.processedTexts.has(finalKey)) {
             console.log(`Skipping duplicate segment: "${originalText}"`);
             return;
+=======
+        if (event.result) {
+          
+          if (
+            event.result.reason === sdk.ResultReason.TranslatedSpeech &&
+            event.result.text.trim() !== ""
+          ) {
+            const segmentId = this.segmentCounter++;
+            const targetLang = this.targetLanguage.split('-')[0];
+            const translation = event.result.translations?.get(targetLang);
+            
+            // Verificar si este texto ya ha sido procesado para evitar duplicación
+            const finalKey = `${event.result.text}_${translation}`;
+            
+            // Solo crear un nuevo segmento si este texto final no se ha procesado antes
+            if (!this.processedTexts.has(finalKey)) {
+              console.log(`Reconocimiento final: "${event.result.text}" -> "${translation}"`);
+              
+              const segment: AudioSegment = {
+                id: segmentId,
+                timestamp: Date.now(),
+                status: SegmentStatus.TRANSLATING,
+                originalText: event.result.text,
+                translatedText: translation || "",
+                isPartial: false,
+                processed: false
+              };
+              
+              // Add to processing queue and emit event
+              this.audioQueue.push(segment);
+              this.emit("segmentCreated", segment);
+              
+              // Marcar como procesado
+              this.processedTexts.add(finalKey);
+              
+              // Synthesize the translation when ready
+              this.synthesizeSegment(segment);
+            } else {
+              console.log(`Omitiendo texto ya procesado: "${event.result.text}"`);
+            }
+>>>>>>> 3b39e77 (Fix: Improve audio synthesis and segment handling)
           }
           this.processedTexts.add(finalKey);
           const segmentId = this.segmentCounter++;
