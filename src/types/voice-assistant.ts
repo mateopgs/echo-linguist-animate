@@ -1,3 +1,4 @@
+
 // Azure Speech Service types
 export type SupportedLanguages = {
   code: string;
@@ -10,6 +11,7 @@ export type VoiceOption = {
   name: string; 
   gender: "Male" | "Female";
   isNeural?: boolean;
+  locale: string; // Add locale property to fix the TypeScript error
 };
 
 export type AzureConfig = {
