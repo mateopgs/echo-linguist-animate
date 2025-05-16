@@ -180,8 +180,11 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
               isPartial: true
             };
 <<<<<<< HEAD
+<<<<<<< HEAD
             this.pendingPartialText = partialText;
             this.pendingPartialTranslation = partialTranslation;
+=======
+>>>>>>> 6b34e47 (:construction:)
 =======
 >>>>>>> 6b34e47 (:construction:)
             this.emit("segmentUpdated", tempSegment);
@@ -216,9 +219,12 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
           this.emit("segmentCreated", segment);
           this.synthesizeSegment(segment);
 <<<<<<< HEAD
+<<<<<<< HEAD
           // clear pending partial now that final segment emitted
           this.pendingPartialText = "";
           this.pendingPartialTranslation = "";
+=======
+>>>>>>> 6b34e47 (:construction:)
 =======
 >>>>>>> 6b34e47 (:construction:)
         }
