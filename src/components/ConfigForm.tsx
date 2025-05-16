@@ -7,6 +7,7 @@ import { Switch } from "./ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 import { Info } from "lucide-react";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "./ui/accordion";
 
 const ConfigForm: React.FC = () => {
   const {
@@ -34,7 +35,8 @@ const ConfigForm: React.FC = () => {
   } = useVoiceAssistant();
 
   return (
-    <div className="space-y-6">
+    // Scroll container with max height
+    <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2">
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label htmlFor="useAIEnhancement" className="text-base">
@@ -225,79 +227,83 @@ const ConfigForm: React.FC = () => {
         </Select>
       </div>
 
-      <div className="space-y-4 border-t pt-4">
-        <h3 className="font-medium text-base">Configuración avanzada</h3>
-
-        {isRealTimeMode && (
-          <>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="initialSilenceTimeout" className="text-sm">
-                  Tiempo de inicio del silencio
-                </Label>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Info size={16} className="text-slate-400" />
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="max-w-xs">
-                      Tiempo en milisegundos antes de que el sistema determine que ha comenzado el silencio inicial.
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
-              <div className="space-y-1">
-                <Slider
-                  id="initialSilenceTimeout"
-                  defaultValue={[initialSilenceTimeout]}
-                  max={10000}
-                  min={1000}
-                  step={1000}
-                  onValueChange={(values) => setInitialSilenceTimeout(values[0])}
-                />
-                <div className="flex justify-between text-xs text-slate-500">
-                  <span>1s</span>
-                  <span>{(initialSilenceTimeout / 1000).toFixed(0)}s</span>
-                  <span>10s</span>
+      {/* Advanced settings collapsible */}
+      <Accordion type="single" collapsible>
+        <AccordionItem value="advanced">
+          <AccordionTrigger className="w-full text-left font-medium">Configuración avanzada</AccordionTrigger>
+          <AccordionContent>
+            {isRealTimeMode && (
+              <>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="initialSilenceTimeout" className="text-sm">
+                      Tiempo de inicio del silencio
+                    </Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info size={16} className="text-slate-400" />
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-xs">
+                          Tiempo en milisegundos antes de que el sistema determine que ha comenzado el silencio inicial.
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                  <div className="space-y-1">
+                    <Slider
+                      id="initialSilenceTimeout"
+                      defaultValue={[initialSilenceTimeout]}
+                      max={10000}
+                      min={1000}
+                      step={1000}
+                      onValueChange={(values) => setInitialSilenceTimeout(values[0])}
+                    />
+                    <div className="flex justify-between text-xs text-slate-500">
+                      <span>1s</span>
+                      <span>{(initialSilenceTimeout / 1000).toFixed(0)}s</span>
+                      <span>10s</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="endSilenceTimeout" className="text-sm">
-                  Tiempo de fin del silencio
-                </Label>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Info size={16} className="text-slate-400" />
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="max-w-xs">
-                      Tiempo en milisegundos de silencio para determinar que se ha terminado de hablar.
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
-              <div className="space-y-1">
-                <Slider
-                  id="endSilenceTimeout"
-                  defaultValue={[endSilenceTimeout]}
-                  max={2000}
-                  min={100}
-                  step={100}
-                  onValueChange={(values) => setEndSilenceTimeout(values[0])}
-                />
-                <div className="flex justify-between text-xs text-slate-500">
-                  <span>100ms</span>
-                  <span>{endSilenceTimeout}ms</span>
-                  <span>2000ms</span>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="endSilenceTimeout" className="text-sm">
+                      Tiempo de fin del silencio
+                    </Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info size={16} className="text-slate-400" />
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-xs">
+                          Tiempo en milisegundos de silencio para determinar que se ha terminado de hablar.
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                  <div className="space-y-1">
+                    <Slider
+                      id="endSilenceTimeout"
+                      defaultValue={[endSilenceTimeout]}
+                      max={2000}
+                      min={100}
+                      step={100}
+                      onValueChange={(values) => setEndSilenceTimeout(values[0])}
+                    />
+                    <div className="flex justify-between text-xs text-slate-500">
+                      <span>100ms</span>
+                      <span>{endSilenceTimeout}ms</span>
+                      <span>2000ms</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-          </>
-        )}
-      </div>
+              </>
+            )}
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
     </div>
   );
 };
