@@ -1,4 +1,3 @@
-
 import React from "react";
 import { useVoiceAssistant } from "../contexts/VoiceAssistantContext";
 import { Label } from "./ui/label";
@@ -298,55 +297,6 @@ const ConfigForm: React.FC = () => {
             </div>
           </>
         )}
-
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="apiKey" className="text-sm">
-              Azure Speech Key
-            </Label>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Info size={16} className="text-slate-400" />
-                </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-xs">
-                  Clave de API para el servicio Azure Speech.
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-          <Input
-            id="apiKey"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            type="password"
-            placeholder="Ingrese su clave de API"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="region" className="text-sm">
-              Azure Region
-            </Label>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Info size={16} className="text-slate-400" />
-                </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-xs">
-                  Región de Azure donde está desplegado tu servicio (ej. eastus2).
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-          <Input
-            id="region"
-            value={region}
-            onChange={(e) => setRegion(e.target.value)}
-            placeholder="Región de Azure (ej. eastus2)"
-          />
-        </div>
       </div>
     </div>
   );
