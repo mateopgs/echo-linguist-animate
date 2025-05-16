@@ -46,15 +46,17 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
   private processing: boolean = false;
   private sourceLanguage: string = "es-ES";
   private targetLanguage: string = "en-US";
-  private segmentInterval: number = 3000; // 3 seconds per segment by default
+  private segmentInterval: number = 1000; // 3 seconds per segment by default
   private captureTimer: NodeJS.Timeout | null = null;
   private isCapturingWhileSpeaking: boolean = false;
-  private initialSilenceTimeoutMs: number = 5000; // default initial silence timeout in ms
-  private endSilenceTimeoutMs: number = 500; // default end silence timeout in ms
+  private initialSilenceTimeoutMs: number = 500; // default initial silence timeout in ms
+  private endSilenceTimeoutMs: number = 50; // default end silence timeout in ms for micro-silence detection
   private currentVoice: VoiceOption | null = null;
-  private voiceSpeed: number = 1.1; // Velocidad por defecto
+  private voiceSpeed: number = 0.9; // Velocidad por defecto
   private processedTexts: Set<string> = new Set(); // Set para controlar textos ya procesados
   private playbackQueue: Promise<void> = Promise.resolve(); // Cola para reproducción secuencial
+  private pendingPartialText: string = "";
+  private pendingPartialTranslation: string = "";
 
   constructor() {
     super();
@@ -177,6 +179,8 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
               translatedText: partialTranslation,
               isPartial: true
             };
+            this.pendingPartialText = partialText;
+            this.pendingPartialTranslation = partialTranslation;
             this.emit("segmentUpdated", tempSegment);
           }
         }
@@ -208,6 +212,9 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
           this.audioQueue.push(segment);
           this.emit("segmentCreated", segment);
           this.synthesizeSegment(segment);
+          // clear pending partial now that final segment emitted
+          this.pendingPartialText = "";
+          this.pendingPartialTranslation = "";
         }
       };
 
@@ -285,17 +292,36 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
     if (this.captureTimer) {
       clearInterval(this.captureTimer);
     }
-    
-    // Usar un intervalo más grande para evitar segmentación excesiva
     this.captureTimer = setInterval(() => {
-      if (this.currentlyPlaying && this.isCapturingWhileSpeaking && this.translationRecognizer) {
-        console.log("Forcing segment creation while speaking");
-        
-        // Limpiar mapas de control para permitir nuevos segmentos
-        if (this.processedTexts.size > 100) {
-          console.log("Limpiando caché de textos procesados...");
-          this.processedTexts.clear();
+      if (this.isCapturingWhileSpeaking && this.translationRecognizer && this.pendingPartialText) {
+        const originalText = this.pendingPartialText.trim();
+        const translatedText = this.pendingPartialTranslation.trim();
+        const finalKey = `${originalText}_${translatedText}`;
+        if (originalText && !this.processedTexts.has(finalKey)) {
+          this.processedTexts.add(finalKey);
+          const segmentId = this.segmentCounter++;
+          const segment: AudioSegment = {
+            id: segmentId,
+            timestamp: Date.now(),
+            status: SegmentStatus.TRANSLATING,
+            originalText,
+            translatedText,
+            isPartial: false,
+            processed: false
+          };
+          console.log("Forcing micro-silence segment:", originalText);
+          this.audioQueue.push(segment);
+          this.emit("segmentCreated", segment);
+          this.synthesizeSegment(segment);
         }
+        // reset pending after forcing segment
+        this.pendingPartialText = "";
+        this.pendingPartialTranslation = "";
+      }
+      // clear cache to avoid memory growth
+      if (this.processedTexts.size > 100) {
+        console.log("Limpiando caché de textos procesados...");
+        this.processedTexts.clear();
       }
     }, Math.max(this.segmentInterval, 700)); // Intervalo mínimo para evitar segmentación excesiva
   }
