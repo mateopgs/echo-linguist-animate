@@ -299,11 +299,19 @@ const ConfigForm: React.FC = () => {
                     </div>
                   </div>
                 </div>
+<<<<<<< HEAD
               </>
             )}
           </AccordionContent>
         </AccordionItem>
       </Accordion>
+=======
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+>>>>>>> 6b34e47 (:construction:)
     </div>
   );
 };
