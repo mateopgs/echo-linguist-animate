@@ -30,8 +30,17 @@ const VoiceAssistant: React.FC = () => {
     setCapturingWhileSpeaking,
     segmentInterval,
     setSegmentInterval,
-    useAIEnhancement
+    useAIEnhancement,
+    isConfigured
   } = useVoiceAssistant();
+
+  // Auto-start listening when the component mounts and is configured
+  useEffect(() => {
+    if (isConfigured && state === AssistantState.IDLE) {
+      console.log("Auto-starting voice recognition...");
+      startListening();
+    }
+  }, [isConfigured, startListening, state]);
 
   const handleToggleListen = () => {
     if (state === AssistantState.LISTENING) {
