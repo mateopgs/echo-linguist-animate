@@ -30,25 +30,8 @@ const VoiceAssistant: React.FC = () => {
     setCapturingWhileSpeaking,
     segmentInterval,
     setSegmentInterval,
-    useAIEnhancement,
-    isConfigured
+    useAIEnhancement
   } = useVoiceAssistant();
-
-  // Auto-start functionality when URL contains autostart=true
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const shouldAutoStart = urlParams.get('autostart') === 'true';
-    
-    if (shouldAutoStart && isConfigured && state === AssistantState.IDLE) {
-      console.log("Auto-starting voice interaction from URL parameter");
-      // Small delay to ensure everything is properly initialized
-      const timer = setTimeout(() => {
-        startListening();
-      }, 1000);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [isConfigured, state, startListening]);
 
   const handleToggleListen = () => {
     if (state === AssistantState.LISTENING) {
