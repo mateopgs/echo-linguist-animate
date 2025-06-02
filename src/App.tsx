@@ -8,8 +8,10 @@ import { Toaster } from './components/ui/toaster';
 const App: React.FC = () => {
   return (
     <VoiceAssistantProvider>
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <VoiceAssistant />
+      <div className="min-h-screen bg-gradient-to-b from-purple-50 via-white to-voiceAssistant-background flex items-center justify-center px-2 sm:px-4 py-4">
+        <div className="w-full max-w-4xl">
+          <VoiceAssistant />
+        </div>
       </div>
       <Toaster />
     </VoiceAssistantProvider>
