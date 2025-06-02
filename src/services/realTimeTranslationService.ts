@@ -118,8 +118,6 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
       throw new Error("Translation service not configured with Azure credentials");
     }
 
-    // Reset interim word counter at session start
-    this.interimWordsProcessed = 0;
     if (this.processing) {
       console.warn("Session already in progress");
       return;
