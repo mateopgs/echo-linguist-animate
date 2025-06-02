@@ -1,3 +1,4 @@
+
 import * as sdk from "microsoft-cognitiveservices-speech-sdk";
 import { AzureConfig, VoiceOption } from "../types/voice-assistant";
 import { EventEmitter } from "../utils/eventEmitter";
@@ -118,8 +119,6 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
       throw new Error("Translation service not configured with Azure credentials");
     }
 
-    // Reset interim word counter at session start
-    this.interimWordsProcessed = 0;
     if (this.processing) {
       console.warn("Session already in progress");
       return;
