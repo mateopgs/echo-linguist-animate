@@ -64,6 +64,38 @@ const VoiceAssistant: React.FC = () => {
     return b.timestamp - a.timestamp;
   });
 
+  // Función para obtener el estado de descripción mejorado
+  const getStatusText = () => {
+    if (state === AssistantState.IDLE) return "Listo para traducir";
+    
+    if (state === AssistantState.LISTENING) {
+      if (isCapturingWhileSpeaking) {
+        return "Capturando y traduciendo continuamente...";
+      }
+      return "Escuchando y traduciendo en tiempo real...";
+    }
+    
+    if (state === AssistantState.SPEAKING) {
+      if (isCapturingWhileSpeaking) {
+        return "Reproduciendo traducción (aún capturando)";
+      }
+      return "Reproduciendo...";
+    }
+    
+    if (state === AssistantState.PROCESSING) {
+      return (
+        <span className="flex items-center justify-center">
+          <Sparkles size={16} className="mr-2 text-violet-500" />
+          "Mejorando traducción con IA..."
+        </span>
+      );
+    }
+    
+    if (state === AssistantState.ERROR) return "Error ocurrido";
+    
+    return "";
+  };
+
   return (
     <div className="w-full max-w-none">
       <Card className="w-full shadow-2xl border-0 bg-white/80 backdrop-blur-sm">
@@ -80,12 +112,20 @@ const VoiceAssistant: React.FC = () => {
               />
               <div className="flex flex-col">
                 <h1 className="text-lg sm:text-xl md:text-2xl font-bold">Traduce AI</h1>
-                {useAIEnhancement && (
-                  <span className="flex items-center text-xs sm:text-sm bg-purple-700/80 px-2 py-1 rounded-full backdrop-blur-sm">
-                    <Sparkles size={14} className="mr-1" />
-                    AI Enhanced
-                  </span>
-                )}
+                <div className="flex items-center space-x-2">
+                  {useAIEnhancement && (
+                    <span className="flex items-center text-xs sm:text-sm bg-purple-700/80 px-2 py-1 rounded-full backdrop-blur-sm">
+                      <Sparkles size={14} className="mr-1" />
+                      AI Enhanced
+                    </span>
+                  )}
+                  {isCapturingWhileSpeaking && state === AssistantState.LISTENING && (
+                    <span className="flex items-center text-xs sm:text-sm bg-green-700/80 px-2 py-1 rounded-full backdrop-blur-sm">
+                      <Volume size={14} className="mr-1" />
+                      Captura Continua
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
             <Dialog>
@@ -133,24 +173,7 @@ const VoiceAssistant: React.FC = () => {
             <AudioVisualizer state={state} />
 
             <div className="text-center text-sm lg:text-base text-muted-foreground mt-3 lg:mt-4 font-medium">
-              {state === AssistantState.IDLE && "Listo para traducir"}
-              {state === AssistantState.LISTENING &&
-                (isRealTimeMode
-                  ? isCapturingWhileSpeaking
-                    ? "Capturando y traduciendo continuamente..."
-                    : "Escuchando y traduciendo en tiempo real..."
-                  : "Escuchando...")}
-              {state === AssistantState.SPEAKING &&
-                (isRealTimeMode && isCapturingWhileSpeaking
-                  ? "Reproduciendo traducción (aún capturando)"
-                  : "Reproduciendo...")}
-              {state === AssistantState.PROCESSING && (
-                <span className="flex items-center justify-center">
-                  <Sparkles size={16} className="mr-2 text-violet-500" />
-                  "Mejorando traducción con IA..."
-                </span>
-              )}
-              {state === AssistantState.ERROR && "Error ocurrido"}
+              {getStatusText()}
             </div>
           </div>
 
