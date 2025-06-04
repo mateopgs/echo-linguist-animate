@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, useEffect, useRef } from "react";
 import { azureSpeechService } from "../services/azureSpeechService";
-import { realTimeTranslationService, SegmentStatus, AudioSegment } from "../services/realTimeTranslationService";
+import { RealTimeTranslationService, SegmentStatus, AudioSegment } from "../services/realTimeTranslationService";
 import { SupportedLanguages, TranscriptionResult, AssistantState, AzureConfig, VoiceOption } from "../types/voice-assistant";
 import { useToast } from "../hooks/use-toast";
 import { azureOpenAIService } from "../services/azureOpenAIService";
@@ -443,7 +443,10 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
 
   // Función para obtener estadísticas de segmentos
   const getSegmentStats = () => {
-    return realTimeTranslationService.getSegmentStats();
+    if (realTimeTranslationServiceRef.current) {
+      return realTimeTranslationServiceRef.current.getSegmentStats();
+    }
+    return { total: 0, completed: 0, errors: 0 };
   };
 
   // Manejo mejorado de segmentos con orden cronológico garantizado
@@ -548,10 +551,14 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
       if (useAIEnhancement) {
         azureOpenAIService.clearHistory();
       }
-      realTimeTranslationService.clearHistory();
+      if (realTimeTranslationServiceRef.current) {
+        realTimeTranslationServiceRef.current.clearHistory();
+      }
       
       console.log("Iniciando traducción en tiempo real optimizada...");
-      await realTimeTranslationService.startListening();
+      if (realTimeTranslationServiceRef.current) {
+        await realTimeTranslationServiceRef.current.startListening();
+      }
       
     } catch (error) {
       console.error("Error iniciando traducción en tiempo real:", error);
@@ -574,8 +581,8 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
 
   const stopListening = () => {
     console.log("Deteniendo escucha...");
-    if (isRealTimeMode) {
-      realTimeTranslationService.stopListening();
+    if (isRealTimeMode && realTimeTranslationServiceRef.current) {
+      realTimeTranslationServiceRef.current.stopListening();
       setState(AssistantState.IDLE);
       
       // Mostrar estadísticas finales
@@ -587,7 +594,9 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
   const clearTranscriptionHistory = () => {
     setTranscriptionHistory([]);
     setActiveSegments([]);
-    realTimeTranslationService.clearHistory();
+    if (realTimeTranslationServiceRef.current) {
+      realTimeTranslationServiceRef.current.clearHistory();
+    }
     console.log("Historial de transcripciones limpiado");
   };
 
