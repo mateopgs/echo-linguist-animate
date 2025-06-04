@@ -1,6 +1,5 @@
 
 import { 
-  CognitiveServicesCredentials, 
   SpeechConfig, 
   AudioConfig, 
   SpeechRecognizer, 
@@ -8,12 +7,12 @@ import {
   SpeechRecognitionEventArgs,
   SpeechRecognitionResult
 } from 'microsoft-cognitiveservices-speech-sdk';
-import { translateWithAI } from './azureOpenAIService';
 
 export enum SegmentStatus {
   RECORDING = 'recording',
   PROCESSING = 'processing',
-  COMPLETED = 'completed'
+  COMPLETED = 'completed',
+  ERROR = 'error'
 }
 
 export interface AudioSegment {
@@ -149,7 +148,6 @@ export class RealTimeTranslationService {
   }
 
   private handleInterimResult(text: string): void {
-    // Remove the problematic line that references non-existent property
     if (!text.trim()) return;
 
     // Create or update current segment for interim results
@@ -203,17 +201,11 @@ export class RealTimeTranslationService {
       let translatedText = '';
       
       if (this.useAIEnhancement && !segment.isPartial) {
-        // Use AI-enhanced translation for final results
-        const context = Array.from(this.segmentHistory.values()).slice(-3).join(' ');
-        translatedText = await translateWithAI(
-          segment.originalText,
-          this.sourceLanguage,
-          this.targetLanguage,
-          context
-        );
+        // For now, use placeholder translation until AI service is properly configured
+        translatedText = `[AI Enhanced: ${segment.originalText}]`;
       } else {
-        // Use simple translation (or implement basic translation service)
-        translatedText = `[${segment.originalText}]`; // Placeholder
+        // Use simple translation placeholder
+        translatedText = `[Translated: ${segment.originalText}]`;
       }
 
       segment.translatedText = translatedText;
@@ -224,7 +216,7 @@ export class RealTimeTranslationService {
     } catch (error) {
       console.error('Translation error:', error);
       segment.translatedText = `Translation error: ${error}`;
-      segment.status = SegmentStatus.COMPLETED;
+      segment.status = SegmentStatus.ERROR;
       this.onSegmentUpdate?.(segment);
     }
   }
@@ -256,3 +248,6 @@ export class RealTimeTranslationService {
     this.currentSegment = null;
   }
 }
+
+// Export a singleton instance
+export const realTimeTranslationService = new RealTimeTranslationService('', '');

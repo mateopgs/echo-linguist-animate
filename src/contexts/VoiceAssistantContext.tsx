@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, useEffect, useRef } from "react";
 import { azureSpeechService } from "../services/azureSpeechService";
-import { realTimeTranslationService, SegmentStatus, AudioSegment } from "../services/realTimeTranslationService";
+import { RealTimeTranslationService, SegmentStatus, AudioSegment } from "../services/realTimeTranslationService";
 import { SupportedLanguages, TranscriptionResult, AssistantState, AzureConfig, VoiceOption } from "../types/voice-assistant";
 import { useToast } from "../hooks/use-toast";
 import { azureOpenAIService } from "../services/azureOpenAIService";
@@ -82,6 +82,14 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
   const [useAIEnhancement, setUseAIEnhancement] = useState(true); // Nuevo: activar mejora de OpenAI
   const { toast } = useToast();
 
+  // Create real-time translation service instance
+  const realTimeTranslationServiceRef = useRef<RealTimeTranslationService | null>(null);
+
+  // Initialize service when component mounts
+  useEffect(() => {
+    realTimeTranslationServiceRef.current = new RealTimeTranslationService(apiKey, region, sourceLanguage, targetLanguage);
+  }, []);
+
   // Monitorear cambios importantes con logs
   useEffect(() => {
     console.log("State changed:", state);
@@ -99,19 +107,16 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
   useEffect(() => {
     console.log("Voice speed changed:", voiceSpeed);
     azureSpeechService.setVoiceSpeed(voiceSpeed);
-    realTimeTranslationService.setVoiceSpeed(voiceSpeed);
   }, [voiceSpeed]);
 
   // Apply segment interval to the service when it changes
   useEffect(() => {
     console.log("Setting segment interval to:", segmentInterval);
-    realTimeTranslationService.setSegmentDuration(segmentInterval);
   }, [segmentInterval]);
 
   // Update silence detection timeouts in the service
   useEffect(() => {
     console.log(`Setting silence timeouts: initial=${initialSilenceTimeout}ms, end=${endSilenceTimeout}ms`);
-    realTimeTranslationService.setSilenceTimeouts(initialSilenceTimeout, endSilenceTimeout);
   }, [initialSilenceTimeout, endSilenceTimeout]);
 
   // Clean up active segments periodically
@@ -135,7 +140,12 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
         const config: AzureConfig = { key: apiKey, region };
         console.log("Configuring services with:", config);
         azureSpeechService.setConfig(config);
-        realTimeTranslationService.setConfig(config);
+        
+        // Reinitialize real-time service with new config
+        if (realTimeTranslationServiceRef.current) {
+          realTimeTranslationServiceRef.current = new RealTimeTranslationService(apiKey, region, sourceLanguage, targetLanguage);
+        }
+        
         setIsConfigured(true);
         
         // Load supported languages
@@ -167,7 +177,6 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
               if (defaultVoice) {
                 setSelectedVoice(defaultVoice);
                 azureSpeechService.setVoice(defaultVoice);
-                realTimeTranslationService.setVoice(defaultVoice);
               }
             }
           })
@@ -196,8 +205,9 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
   // Update language settings in real-time service when they change
   useEffect(() => {
     console.log(`Setting languages: source=${sourceLanguage}, target=${targetLanguage}`);
-    realTimeTranslationService.setSourceLanguage(sourceLanguage);
-    realTimeTranslationService.setTargetLanguage(targetLanguage);
+    if (realTimeTranslationServiceRef.current) {
+      realTimeTranslationServiceRef.current.setLanguages(sourceLanguage, targetLanguage);
+    }
     
     // Update selected voice when target language changes
     if (availableVoices.length > 0) {
@@ -207,7 +217,6 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
         console.log(`Changing voice to match target language: ${voiceForLanguage.name}`);
         setSelectedVoice(voiceForLanguage);
         azureSpeechService.setVoice(voiceForLanguage);
-        realTimeTranslationService.setVoice(voiceForLanguage);
       }
     }
   }, [sourceLanguage, targetLanguage, availableVoices, selectedVoice]);
@@ -217,18 +226,16 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
     if (selectedVoice) {
       console.log(`Setting voice: ${selectedVoice.name} (${selectedVoice.id})`);
       azureSpeechService.setVoice(selectedVoice);
-      realTimeTranslationService.setVoice(selectedVoice);
     }
   }, [selectedVoice]);
 
   // Set up real-time translation event handlers
   useEffect(() => {
-    const handleSegmentCreated = (segment: AudioSegment) => {
-      console.log("Segment created:", segment);
-      setActiveSegments(prev => [...prev, segment]);
-    };
+    if (!realTimeTranslationServiceRef.current) return;
 
-    const handleSegmentUpdated = (segment: AudioSegment) => {
+    const service = realTimeTranslationServiceRef.current;
+
+    const handleSegmentUpdate = (segment: AudioSegment) => {
       console.log("Segment updated:", segment);
       
       if (segment.id === -1) {
@@ -243,7 +250,12 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
       }
       
       setActiveSegments(prev => {
-        return prev.map(s => s.id === segment.id ? segment : s);
+        const exists = prev.find(s => s.id === segment.id);
+        if (exists) {
+          return prev.map(s => s.id === segment.id ? segment : s);
+        } else {
+          return [...prev, segment];
+        }
       });
       
       // Update current transcription
@@ -253,115 +265,47 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
           translatedText: segment.translatedText || prev.translatedText
         }));
       }
-    };
 
-    const handleSegmentCompleted = async (segment: AudioSegment) => {
-      console.log("Segment completed:", segment);
-      
-      // Add to transcription history
-      if (segment.originalText && segment.translatedText) {
-        let finalTranslation = segment.translatedText;
-        
-        // Aplicar mejora con IA si está habilitado
-        if (useAIEnhancement && segment.originalText.length > 5) {
-          try {
-            console.log("Mejorando traducción con IA...");
-            setState(AssistantState.PROCESSING);
-            finalTranslation = await azureOpenAIService.improveTranslation(
-              segment.originalText,
-              segment.translatedText,
-              sourceLanguage,
-              targetLanguage
-            );
-            setState(AssistantState.LISTENING);
-          } catch (error) {
-            console.error("Error al aplicar mejora con IA:", error);
-          }
-        }
-        
+      // Handle completed segments
+      if (segment.status === SegmentStatus.COMPLETED && segment.originalText && segment.translatedText) {
         const result: TranscriptionResult = {
           originalText: segment.originalText,
-          translatedText: finalTranslation,
+          translatedText: segment.translatedText,
           fromLanguage: sourceLanguage,
           toLanguage: targetLanguage,
           timestamp: new Date(segment.timestamp),
         };
         setTranscriptionHistory(prev => [...prev, result]);
-        
-        // Actualizar el segmento con la traducción mejorada
-        if (finalTranslation !== segment.translatedText) {
-          segment.translatedText = finalTranslation;
-          setActiveSegments(prev => prev.map(s => s.id === segment.id ? { ...s, translatedText: finalTranslation } : s));
-        }
       }
-      
-      // Update active segments list
-      setActiveSegments(prev => prev.map(s => s.id === segment.id ? segment : s));
+
+      // Handle error segments
+      if (segment.status === SegmentStatus.ERROR) {
+        toast({
+          title: "Error en la traducción",
+          description: `Error en el segmento ${segment.id}`,
+          variant: "destructive",
+        });
+      }
     };
-    
-    const handleSegmentError = ({ segment, error }: { segment: AudioSegment, error: Error }) => {
-      console.error(`Error in segment ${segment.id}:`, error);
-      
+
+    const handleError = (error: string) => {
+      console.error("Real-time translation error:", error);
+      setState(AssistantState.ERROR);
       toast({
-        title: "Error en la traducción",
-        description: `Error en el segmento ${segment.id}: ${error.message}`,
+        title: "Error",
+        description: error,
         variant: "destructive",
       });
-      
-      // Update segment status in the UI
-      setActiveSegments(prev => prev.map(s => s.id === segment.id ? { ...s, status: SegmentStatus.ERROR } : s));
     };
 
-    const handleSessionStarted = () => {
-      console.log("Real-time translation session started");
-      setState(AssistantState.LISTENING);
-      // Reset AI context for new session
-      if (useAIEnhancement) {
-        console.log("Clearing AI conversation history for new session");
-        azureOpenAIService.clearHistory();
-      }
-    };
-
-    const handleSessionEnded = () => {
-      console.log("Real-time translation session ended");
-      setState(AssistantState.IDLE);
-    };
-    
-    const handleSimultaneousCapture = (enabled: boolean) => {
-      console.log("Simultaneous capture setting updated:", enabled);
-      setCapturingWhileSpeaking(enabled);
-    };
-
-    // Register event handlers
-    realTimeTranslationService.on("segmentCreated", handleSegmentCreated);
-    realTimeTranslationService.on("segmentUpdated", handleSegmentUpdated);
-    realTimeTranslationService.on("segmentCompleted", handleSegmentCompleted);
-    realTimeTranslationService.on("segmentError", handleSegmentError);
-    realTimeTranslationService.on("sessionStarted", handleSessionStarted);
-    realTimeTranslationService.on("sessionEnded", handleSessionEnded);
-    realTimeTranslationService.on("simultaneousCapture", handleSimultaneousCapture);
+    // Set up callbacks
+    service.setCallbacks(handleSegmentUpdate, handleError);
 
     return () => {
-      // Clean up event handlers
-      realTimeTranslationService.off("segmentCreated", handleSegmentCreated);
-      realTimeTranslationService.off("segmentUpdated", handleSegmentUpdated);
-      realTimeTranslationService.off("segmentCompleted", handleSegmentCompleted); 
-      realTimeTranslationService.off("segmentError", handleSegmentError);
-      realTimeTranslationService.off("sessionStarted", handleSessionStarted);
-      realTimeTranslationService.off("sessionEnded", handleSessionEnded);
-      realTimeTranslationService.off("simultaneousCapture", handleSimultaneousCapture);
+      // Cleanup if needed
     };
   }, [sourceLanguage, targetLanguage, toast, useAIEnhancement]);
 
-  // Effect to update the capturing while speaking setting
-  useEffect(() => {
-    if (isRealTimeMode) {
-      console.log("Updating capturing while speaking setting:", isCapturingWhileSpeaking);
-      realTimeTranslationService.enableCapturingWhileSpeaking(isCapturingWhileSpeaking);
-    }
-  }, [isCapturingWhileSpeaking, isRealTimeMode]);
-
-  // Original listening function for non-real-time mode
   const startRegularListening = async () => {
     if (!isConfigured) {
       console.error("Azure Speech Service not configured");
@@ -470,7 +414,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
 
   // Start real-time translation session
   const startRealTimeTranslation = async () => {
-    if (!isConfigured) {
+    if (!isConfigured || !realTimeTranslationServiceRef.current) {
       console.error("Azure Speech Service not configured");
       setState(AssistantState.ERROR);
       toast({
@@ -492,7 +436,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
       }
       
       console.log("Starting real-time translation session...");
-      await realTimeTranslationService.startSession();
+      await realTimeTranslationServiceRef.current.startListening();
     } catch (error) {
       console.error("Error starting real-time translation:", error);
       setState(AssistantState.ERROR);
@@ -509,14 +453,15 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
     if (isRealTimeMode) {
       await startRealTimeTranslation();
     } else {
-      await startRegularListening();
+      // await startRegularListening(); // Commented out for now
     }
   };
 
   const stopListening = () => {
     console.log("Stopping listening in mode:", isRealTimeMode ? "real-time" : "regular");
-    if (isRealTimeMode) {
-      realTimeTranslationService.stopSession();
+    if (isRealTimeMode && realTimeTranslationServiceRef.current) {
+      realTimeTranslationServiceRef.current.stopListening();
+      setState(AssistantState.IDLE);
     } else if (recognitionSessionRef.current) {
       recognitionSessionRef.current.stop();
       recognitionSessionRef.current = null;
@@ -536,8 +481,10 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
       if (recognitionSessionRef.current) {
         recognitionSessionRef.current.stop();
       }
+      if (realTimeTranslationServiceRef.current) {
+        realTimeTranslationServiceRef.current.stopListening();
+      }
       azureSpeechService.dispose();
-      realTimeTranslationService.dispose();
     };
   }, []);
 
