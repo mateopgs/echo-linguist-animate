@@ -65,118 +65,129 @@ const VoiceAssistant: React.FC = () => {
   });
 
   return (
-    <Card className="w-full max-w-full sm:max-w-md md:max-w-2xl mx-auto shadow-lg">
-      <CardHeader
-        style={{ background: 'linear-gradient(to right, white 0%, white 15%, #7c3aed 100%)' }}
-        className="text-white rounded-t-lg px-3 py-2 sm:px-4 sm:py-3 shadow-sm"
-      >
-        <div className="flex items-center justify-between w-full">
-          <div className="flex items-center">
-            <img 
-              src="/lovable-uploads/72da0a50-4942-409a-b30c-5d599427fa00.png" 
-              alt="Traduce AI Logo" 
-              className="h-6 sm:h-8 md:h-10 mr-2"
-            />
-            {useAIEnhancement && (
-              <span className="flex items-center text-xs sm:text-sm bg-violet-700 px-1.5 py-0.5 rounded-md">
-                <Sparkles size={12} className="mr-1" />
-                AI Enhanced
-              </span>
-            )}
+    <div className="w-full max-w-none">
+      <Card className="w-full shadow-2xl border-0 bg-white/80 backdrop-blur-sm">
+        <CardHeader
+          style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}
+          className="text-white rounded-t-lg px-4 py-4 sm:px-6 sm:py-5 shadow-lg"
+        >
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center space-x-3">
+              <img 
+                src="/lovable-uploads/72da0a50-4942-409a-b30c-5d599427fa00.png" 
+                alt="Traduce AI Logo" 
+                className="h-8 sm:h-10 md:h-12 lg:h-14"
+              />
+              <div className="flex flex-col">
+                <h1 className="text-lg sm:text-xl md:text-2xl font-bold">Traduce AI</h1>
+                {useAIEnhancement && (
+                  <span className="flex items-center text-xs sm:text-sm bg-purple-700/80 px-2 py-1 rounded-full backdrop-blur-sm">
+                    <Sparkles size={14} className="mr-1" />
+                    AI Enhanced
+                  </span>
+                )}
+              </div>
+            </div>
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="ghost" className="text-white h-10 w-10 p-0 sm:h-12 sm:w-12 hover:bg-white/20 transition-colors">
+                  <Settings size={24} />
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="w-full max-w-lg mx-auto">
+                <ConfigDialogHeader>
+                  <ConfigDialogTitle>Configuración</ConfigDialogTitle>
+                </ConfigDialogHeader>
+                <ConfigForm />
+                <DialogClose asChild>
+                  <Button className="mt-4 w-full">Cerrar</Button>
+                </DialogClose>
+              </DialogContent>
+            </Dialog>
           </div>
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button variant="ghost" className="text-white h-8 w-8 p-0 sm:h-9 sm:w-9 sm:p-1">
-                <Settings size={20} className="sm:size-24" />
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="w-full max-w-sm md:max-w-lg">
-              <ConfigDialogHeader>
-                <ConfigDialogTitle>Settings</ConfigDialogTitle>
-              </ConfigDialogHeader>
-              <ConfigForm />
-              <DialogClose asChild>
-                <Button className="mt-4 w-full">Close</Button>
-              </DialogClose>
-            </DialogContent>
-          </Dialog>
-        </div>
-      </CardHeader>
-      <CardContent className="p-3 sm:p-4 md:p-6 space-y-3 md:space-y-6">
-        <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
-          <div className="flex-1">
-            <LanguageSelector
-              languages={supportedLanguages}
-              selectedLanguage={sourceLanguage}
-              onChange={setSourceLanguage}
-              label="Speak in"
-            />
+        </CardHeader>
+
+        <CardContent className="p-4 sm:p-6 lg:p-8 space-y-6">
+          {/* Language Selectors - Responsive grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-8">
+            <div className="space-y-2">
+              <LanguageSelector
+                languages={supportedLanguages}
+                selectedLanguage={sourceLanguage}
+                onChange={setSourceLanguage}
+                label="Hablar en"
+              />
+            </div>
+            <div className="space-y-2">
+              <LanguageSelector
+                languages={supportedLanguages}
+                selectedLanguage={targetLanguage}
+                onChange={setTargetLanguage}
+                label="Traducir a"
+              />
+            </div>
           </div>
-          <div className="flex-1">
-            <LanguageSelector
-              languages={supportedLanguages}
-              selectedLanguage={targetLanguage}
-              onChange={setTargetLanguage}
-              label="Translate to"
-            />
+
+          {/* Audio Visualizer Section */}
+          <div className="py-6 lg:py-8">
+            <AudioVisualizer state={state} />
+
+            <div className="text-center text-sm lg:text-base text-muted-foreground mt-3 lg:mt-4 font-medium">
+              {state === AssistantState.IDLE && "Listo para traducir"}
+              {state === AssistantState.LISTENING &&
+                (isRealTimeMode
+                  ? isCapturingWhileSpeaking
+                    ? "Capturando y traduciendo continuamente..."
+                    : "Escuchando y traduciendo en tiempo real..."
+                  : "Escuchando...")}
+              {state === AssistantState.SPEAKING &&
+                (isRealTimeMode && isCapturingWhileSpeaking
+                  ? "Reproduciendo traducción (aún capturando)"
+                  : "Reproduciendo...")}
+              {state === AssistantState.PROCESSING && (
+                <span className="flex items-center justify-center">
+                  <Sparkles size={16} className="mr-2 text-violet-500" />
+                  "Mejorando traducción con IA..."
+                </span>
+              )}
+              {state === AssistantState.ERROR && "Error ocurrido"}
+            </div>
           </div>
-        </div>
 
-        <div className="py-2 md:py-4">
-          <AudioVisualizer state={state} />
+          {/* Active Segments - Full width on larger screens */}
+          {isRealTimeMode && (
+            <div className="w-full">
+              <ActiveSegmentsList
+                segments={sortedSegments}
+                sourceLanguageName={getLanguageName(sourceLanguage)}
+                targetLanguageName={getLanguageName(targetLanguage)}
+              />
+            </div>
+          )}
 
-          <div className="text-center text-xs sm:text-sm text-muted-foreground mt-1 sm:mt-2">
-            {state === AssistantState.IDLE && "Ready to translate"}
-            {state === AssistantState.LISTENING &&
-              (isRealTimeMode
-                ? isCapturingWhileSpeaking
-                  ? "Capturing and translating continuously..."
-                  : "Listening and translating in real-time..."
-                : "Listening...")}
-            {state === AssistantState.SPEAKING &&
-              (isRealTimeMode && isCapturingWhileSpeaking
-                ? "Playing translation (still capturing)"
-                : "Speaking...")}
-            {state === AssistantState.PROCESSING && (
-              <span className="flex items-center justify-center">
-                <Sparkles size={14} className="mr-1 text-violet-500" />
-                "Enhancing translation with AI..."
-              </span>
-            )}
-            {state === AssistantState.ERROR && "Error occurred"}
+          {/* Control Button */}
+          <div className="flex justify-center pt-4 lg:pt-6">
+            <Button
+              onClick={handleToggleListen}
+              size="lg"
+              className={`rounded-full w-16 h-16 sm:w-20 sm:h-20 lg:w-24 lg:h-24 p-0 shadow-xl transition-all duration-300 hover:scale-110 ${
+                state === AssistantState.LISTENING
+                  ? "bg-red-500 hover:bg-red-600 shadow-red-200"
+                  : "bg-gradient-to-br from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 shadow-purple-200"
+              }`}
+            >
+              {state === AssistantState.LISTENING ? (
+                <MicOff size={32} className="lg:size-8" />
+              ) : state === AssistantState.SPEAKING ? (
+                <Volume size={32} className="lg:size-8" />
+              ) : (
+                <Mic size={32} className="lg:size-8" />
+              )}
+            </Button>
           </div>
-        </div>
-
-        {/* Se muestran ahora segmentos parciales inmediatamente, junto con los completos */}
-        {isRealTimeMode && (
-          <ActiveSegmentsList
-            segments={sortedSegments}
-            sourceLanguageName={getLanguageName(sourceLanguage)}
-            targetLanguageName={getLanguageName(targetLanguage)}
-          />
-        )}
-
-        <div className="flex justify-center pt-2">
-          <Button
-            onClick={handleToggleListen}
-            size="lg"
-            className={`rounded-full w-12 h-12 sm:w-16 sm:h-16 p-0 ${
-              state === AssistantState.LISTENING
-                ? "bg-red-500 hover:bg-red-600"
-                : "bg-voiceAssistant-primary hover:bg-voiceAssistant-primary/90"
-            }`}
-          >
-            {state === AssistantState.LISTENING ? (
-              <MicOff size={24} />
-            ) : state === AssistantState.SPEAKING ? (
-              <Volume size={24} />
-            ) : (
-              <Mic size={24} />
-            )}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 
