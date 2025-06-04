@@ -315,11 +315,6 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
     const handleSessionStarted = () => {
       console.log("Real-time translation session started");
       setState(AssistantState.LISTENING);
-      // Reset AI context for new session
-      if (useAIEnhancement) {
-        console.log("Clearing AI conversation history for new session");
-        azureOpenAIService.clearHistory();
-      }
     };
 
     const handleSessionEnded = () => {
