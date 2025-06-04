@@ -74,11 +74,11 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
   const [isRealTimeMode, setRealTimeMode] = useState(true); // Activamos el modo en tiempo real por defecto
   const [isCapturingWhileSpeaking, setCapturingWhileSpeaking] = useState(true);
   const [segmentInterval, setSegmentInterval] = useState(200); // Reducido a 200ms por defecto para mayor rapidez
-  const [initialSilenceTimeout, setInitialSilenceTimeout] = useState(5000); // Silence detection start timeout (ms)
-  const [endSilenceTimeout, setEndSilenceTimeout] = useState(500); // Silence detection end timeout (ms)
+  const [initialSilenceTimeout, setInitialSilenceTimeout] = useState(2000); // Silence detection start timeout (ms)
+  const [endSilenceTimeout, setEndSilenceTimeout] = useState(200); // Silence detection end timeout (ms)
   const [availableVoices, setAvailableVoices] = useState<VoiceOption[]>([]);
   const [selectedVoice, setSelectedVoice] = useState<VoiceOption | null>(null);
-  const [voiceSpeed, setVoiceSpeed] = useState(1.1); // Valor por defecto para velocidad de la voz
+  const [voiceSpeed, setVoiceSpeed] = useState(0.8); // Valor por defecto para velocidad de la voz
   const [useAIEnhancement, setUseAIEnhancement] = useState(true); // Nuevo: activar mejora de OpenAI
   const { toast } = useToast();
 
