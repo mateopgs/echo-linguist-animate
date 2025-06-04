@@ -1,8 +1,13 @@
+
+
 #root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
+  max-width: none;
+  margin: 0;
+  padding: 0;
   text-align: center;
+  width: 100vw;
+  min-height: 100vh;
+  overflow-x: hidden;
 }
 
 .logo {
@@ -40,3 +45,16 @@
 .read-the-docs {
   color: #888;
 }
+
+/* Responsive improvements */
+@media (max-width: 640px) {
+  #root {
+    padding: 0;
+  }
+}
+
+/* Prevent horizontal scroll on mobile */
+body {
+  overflow-x: hidden;
+}
+
