@@ -1,409 +1,483 @@
+import * as sdk from "microsoft-cognitiveservices-speech-sdk";
+import { AzureConfig, VoiceOption } from "../types/voice-assistant";
+import { EventEmitter } from "../utils/eventEmitter";
 
-import { 
-  SpeechConfig, 
-  AudioConfig, 
-  SpeechRecognizer, 
-  ResultReason,
-  SpeechRecognitionEventArgs,
-  SpeechRecognitionResult
-} from 'microsoft-cognitiveservices-speech-sdk';
-
+// Segment processing states and events
 export enum SegmentStatus {
-  RECORDING = 'recording',
-  PROCESSING = 'processing',
-  COMPLETED = 'completed',
-  ERROR = 'error'
+  RECORDING,
+  RECOGNIZING,
+  TRANSLATING,
+  SYNTHESIZING,
+  PLAYING,
+  COMPLETED,
+  ERROR
 }
 
 export interface AudioSegment {
   id: number;
-  originalText: string;
-  translatedText: string;
   timestamp: number;
   status: SegmentStatus;
-  isPartial: boolean;
-  duration?: number;
-  silenceDetected?: boolean;
+  originalText?: string;
+  translatedText?: string;
+  audioData?: ArrayBuffer;
+  isPartial?: boolean; // Para marcar segmentos parciales
+  processed?: boolean; // Flag para evitar repetición
 }
 
-export class RealTimeTranslationService {
-  private speechConfig: SpeechConfig | null = null;
-  private audioConfig: AudioConfig | null = null;
-  private recognizer: SpeechRecognizer | null = null;
-  private isListening: boolean = false;
+export interface TranslationEvents {
+  segmentCreated: AudioSegment;
+  segmentUpdated: AudioSegment;
+  segmentCompleted: AudioSegment;
+  segmentError: { segment: AudioSegment; error: Error };
+  sessionStarted: void;
+  sessionEnded: void;
+  simultaneousCapture: boolean;
+}
+
+export class RealTimeTranslationService extends EventEmitter<TranslationEvents> {
+  private config: AzureConfig | null = null;
+  private recognizer: sdk.SpeechRecognizer | null = null;
+  private translationRecognizer: sdk.TranslationRecognizer | null = null;
+  private synthesizer: sdk.SpeechSynthesizer | null = null;
+  private audioContext: AudioContext | null = null;
+  private audioQueue: AudioSegment[] = [];
+  private currentlyPlaying: boolean = false;
   private segmentCounter: number = 0;
-  private currentSegment: AudioSegment | null = null;
-  private onSegmentUpdate: ((segment: AudioSegment) => void) | null = null;
-  private onError: ((error: string) => void) | null = null;
-  private sourceLanguage: string = 'es-ES';
-  private targetLanguage: string = 'en-US';
-  private useAIEnhancement: boolean = false;
-  private segmentHistory: Map<number, AudioSegment> = new Map();
+  private processing: boolean = false;
+  private sourceLanguage: string = "es-ES";
+  private targetLanguage: string = "en-US";
+  private segmentInterval: number = 3000; // 3 seconds per segment by default
+  private captureTimer: NodeJS.Timeout | null = null;
+  private isCapturingWhileSpeaking: boolean = false;
+  private initialSilenceTimeoutMs: number = 5000; // default initial silence timeout in ms
+  private endSilenceTimeoutMs: number = 500; // default end silence timeout in ms
+  private currentVoice: VoiceOption | null = null;
+  private voiceSpeed: number = 1.1; // Velocidad por defecto
+  private processedTexts: Set<string> = new Set(); // Set para controlar textos ya procesados
+  private playbackQueue: Promise<void> = Promise.resolve(); // Cola para reproducción secuencial
+
+  constructor() {
+    super();
+    // Try to initialize audio context early
+    try {
+      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    } catch (error) {
+      console.error("Failed to create AudioContext:", error);
+    }
+  }
+
+  public setConfig(config: AzureConfig) {
+    this.config = config;
+    console.log("Real-time Translation Service config set:", config);
+  }
+
+  public setSourceLanguage(language: string) {
+    this.sourceLanguage = language;
+  }
+
+  public setTargetLanguage(language: string) {
+    this.targetLanguage = language;
+  }
   
-  // Configuración mejorada para detección de silencios
-  private silenceTimeout: number = 200; // Reducido a 200ms como solicitado
-  private initialSilenceTimeout: number = 3000; // Reducido para mejor respuesta
-  private minSegmentLength: number = 3; // Mínimo 3 caracteres para crear segmento
-  private lastSpeechTime: number = 0;
-  private segmentStartTime: number = 0;
-
-  constructor(
-    apiKey: string, 
-    region: string,
-    sourceLanguage: string = 'es-ES',
-    targetLanguage: string = 'en-US'
-  ) {
-    this.sourceLanguage = sourceLanguage;
-    this.targetLanguage = targetLanguage;
-    this.initializeSpeechConfig(apiKey, region);
+  public setVoice(voice: VoiceOption) {
+    this.currentVoice = voice;
+    console.log(`Real-time Translation Service voice set to: ${voice.name} (${voice.id})`);
   }
-
-  private initializeSpeechConfig(apiKey: string, region: string): void {
-    try {
-      this.speechConfig = SpeechConfig.fromSubscription(apiKey, region);
-      this.speechConfig.speechRecognitionLanguage = this.sourceLanguage;
-      this.speechConfig.enableDictation();
-      
-      // Configuración optimizada para mejor detección de silencios
-      this.speechConfig.setProperty("SpeechServiceConnection_InitialSilenceTimeoutMs", this.initialSilenceTimeout.toString());
-      this.speechConfig.setProperty("SpeechServiceConnection_EndSilenceTimeoutMs", this.silenceTimeout.toString());
-      this.speechConfig.setProperty("SpeechServiceConnection_EnableAudioLogging", "true");
-      
-      // Configuraciones adicionales para mejor precisión
-      this.speechConfig.setProperty("SpeechServiceConnection_RecognitionMode", "Conversation");
-      this.speechConfig.setProperty("SpeechServiceResponse_Synthesis_WordBoundaryEnabled", "true");
-      
-      this.audioConfig = AudioConfig.fromDefaultMicrophoneInput();
-      
-      console.log('Speech config optimizado para mejor detección de silencios');
-    } catch (error) {
-      console.error('Error initializing speech config:', error);
-      this.onError?.(`Error initializing speech recognition: ${error}`);
-    }
+  
+  public setVoiceSpeed(speed: number) {
+    this.voiceSpeed = speed;
+    console.log(`Real-time Translation Service voice speed set to: ${speed}x`);
   }
-
-  public setSilenceTimeout(timeoutMs: number): void {
-    this.silenceTimeout = Math.max(100, Math.min(1000, timeoutMs)); // Entre 100ms y 1s
-    console.log(`Silence timeout configurado a: ${this.silenceTimeout}ms`);
+  
+  public setSegmentDuration(durationMs: number) {
+    this.segmentInterval = durationMs;
+    console.log(`Segment duration set to ${durationMs}ms`);
     
-    if (this.speechConfig) {
-      this.speechConfig.setProperty("SpeechServiceConnection_EndSilenceTimeoutMs", this.silenceTimeout.toString());
+    // Reiniciar el timer si está activo
+    if (this.captureTimer) {
+      this.stopPeriodicSegmentation();
+      this.startPeriodicSegmentation();
     }
   }
+  
+  public get isContinuousCapturing(): boolean {
+    return this.isCapturingWhileSpeaking;
+  }
 
-  public setLanguages(sourceLanguage: string, targetLanguage: string): void {
-    this.sourceLanguage = sourceLanguage;
-    this.targetLanguage = targetLanguage;
-    
-    if (this.speechConfig) {
-      this.speechConfig.speechRecognitionLanguage = sourceLanguage;
+  /**
+   * Configure silence detection timeouts for Azure translation recognizer.
+   */
+  public setSilenceTimeouts(initialMs: number, endMs: number) {
+    this.initialSilenceTimeoutMs = initialMs;
+    this.endSilenceTimeoutMs = endMs;
+    console.log(`Silence timeouts set: initial=${initialMs}ms, end=${endMs}ms`);
+  }
+
+  public async startSession(): Promise<void> {
+    if (!this.config) {
+      throw new Error("Translation service not configured with Azure credentials");
     }
-  }
 
-  public setAIEnhancement(enabled: boolean): void {
-    this.useAIEnhancement = enabled;
-    console.log(`AI Enhancement ${enabled ? 'activado' : 'desactivado'}`);
-  }
-
-  public setCallbacks(
-    onSegmentUpdate: (segment: AudioSegment) => void,
-    onError: (error: string) => void
-  ): void {
-    this.onSegmentUpdate = onSegmentUpdate;
-    this.onError = onError;
-  }
-
-  public async startListening(): Promise<void> {
-    if (!this.speechConfig || !this.audioConfig) {
-      this.onError?.('Speech configuration not initialized');
+    // Reset interim word counter at session start
+    this.interimWordsProcessed = 0;
+    if (this.processing) {
+      console.warn("Session already in progress");
       return;
     }
-
-    if (this.isListening) {
-      console.log('Already listening');
-      return;
-    }
-
+    
+    this.processing = true;
+    this.audioQueue = [];
+    this.segmentCounter = 0;
+    this.processedTexts.clear(); // Limpiar textos procesados al iniciar
+    this.playbackQueue = Promise.resolve(); // Reiniciar cola de reproducción
+    
     try {
-      this.recognizer = new SpeechRecognizer(this.speechConfig, this.audioConfig);
-      this.isListening = true;
-      this.lastSpeechTime = Date.now();
+      // Create translation recognizer
+      const translationConfig = sdk.SpeechTranslationConfig.fromSubscription(
+        this.config.key,
+        this.config.region
+      );
+      
+      translationConfig.speechRecognitionLanguage = this.sourceLanguage;
+      translationConfig.addTargetLanguage(this.targetLanguage.split('-')[0]);
 
-      // Manejo mejorado de resultados parciales
-      this.recognizer.recognizing = (sender, event: SpeechRecognitionEventArgs) => {
-        if (event.result.reason === ResultReason.RecognizingSpeech) {
-          const text = event.result.text;
-          this.lastSpeechTime = Date.now();
-          
-          if (text.trim() && text.length >= this.minSegmentLength) {
-            this.handleInterimResult(text);
+      // Configure for continuous recognition with segmentation
+      translationConfig.setProperty(
+        sdk.PropertyId.SpeechServiceConnection_InitialSilenceTimeoutMs,
+        this.initialSilenceTimeoutMs.toString()
+      );
+      translationConfig.setProperty(
+        sdk.PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs,
+        this.endSilenceTimeoutMs.toString()
+      );
+      
+      // Setup audio config for microphone
+      const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
+      
+      // Create translator with continuous recognition
+      this.translationRecognizer = new sdk.TranslationRecognizer(
+        translationConfig, 
+        audioConfig
+      );
+
+      // Handle recognition events
+      this.translationRecognizer.recognizing = (_, event) => {
+        // Ignore recognition during playback to prevent feedback loops
+        if (this.currentlyPlaying && !this.isCapturingWhileSpeaking) return;
+
+        if (event.result && event.result.reason === sdk.ResultReason.TranslatingSpeech) {
+          const partialText = event.result.text.trim();
+          const partialTranslation = event.result.translations?.get(this.targetLanguage.split('-')[0]) || "";
+          if (partialText) {
+            const tempSegment: AudioSegment = {
+              id: -1,
+              timestamp: Date.now(),
+              status: SegmentStatus.RECOGNIZING,
+              originalText: partialText,
+              translatedText: partialTranslation,
+              isPartial: true
+            };
+            this.emit("segmentUpdated", tempSegment);
           }
         }
       };
 
-      // Manejo mejorado de resultados finales
-      this.recognizer.recognized = (sender, event: SpeechRecognitionEventArgs) => {
-        if (event.result.reason === ResultReason.RecognizedSpeech) {
-          const text = event.result.text;
-          
-          if (text.trim() && text.length >= this.minSegmentLength) {
-            this.handleFinalResult(text, true); // true indica silencio detectado
+      // Handle final recognition results with translation
+      this.translationRecognizer.recognized = (_, event) => {
+        if (event.result && event.result.reason === sdk.ResultReason.TranslatedSpeech) {
+          const originalText = event.result.text.trim();
+          const translatedText = event.result.translations?.get(this.targetLanguage.split('-')[0]) || "";
+          if (!originalText) return;
+          const finalKey = `${originalText}_${translatedText}`;
+          if (this.processedTexts.has(finalKey)) {
+            console.log(`Skipping duplicate segment: "${originalText}"`);
+            return;
           }
+          this.processedTexts.add(finalKey);
+          const segmentId = this.segmentCounter++;
+          console.log(`Creating segment: "${originalText}" -> "${translatedText}"`);
+          const segment: AudioSegment = {
+            id: segmentId,
+            timestamp: Date.now(),
+            status: SegmentStatus.TRANSLATING,
+            originalText,
+            translatedText,
+            isPartial: false,
+            processed: false
+          };
+          this.audioQueue.push(segment);
+          this.emit("segmentCreated", segment);
+          this.synthesizeSegment(segment);
         }
       };
 
-      // Manejo de errores mejorado
-      this.recognizer.canceled = (sender, event) => {
-        console.error('Recognition canceled:', event);
-        this.handleRecognitionError(event.errorDetails);
+      // Handle errors and session events
+      this.translationRecognizer.canceled = (_, event) => {
+        if (event.reason === sdk.CancellationReason.Error) {
+          console.error(`Translation error: ${event.errorCode} - ${event.errorDetails}`);
+        }
       };
 
-      // Manejo de sesión iniciada
-      this.recognizer.sessionStarted = (sender, event) => {
-        console.log('Sesión de reconocimiento iniciada');
-        this.segmentStartTime = Date.now();
+      this.translationRecognizer.sessionStarted = (_, event) => {
+        console.log("Translation session started");
+        this.emit("sessionStarted", undefined);
+        
+        // Start the timer for segmenting speech while speaking
+        this.startPeriodicSegmentation();
       };
 
-      // Manejo de sesión finalizada
-      this.recognizer.sessionStopped = (sender, event) => {
-        console.log('Sesión de reconocimiento finalizada');
-        this.finalizeCurrentSegment();
+      this.translationRecognizer.sessionStopped = (_, event) => {
+        console.log("Translation session stopped");
+        this.stopPeriodicSegmentation();
+        this.emit("sessionEnded", undefined);
       };
 
-      await this.recognizer.startContinuousRecognitionAsync();
-      console.log('Reconocimiento continuo iniciado con configuración optimizada');
+      // Start continuous recognition
+      await this.translationRecognizer.startContinuousRecognitionAsync();
+      console.log("Continuous recognition started successfully");
       
+      // Enable capturing while speaking by default
+      this.enableCapturingWhileSpeaking(true);
+      
+      console.log("Real-time translation session started");
     } catch (error) {
-      console.error('Error starting recognition:', error);
-      this.onError?.(`Failed to start listening: ${error}`);
-      this.isListening = false;
+      console.error("Error starting translation session:", error);
+      this.processing = false;
+      throw error;
     }
   }
 
-  private handleInterimResult(text: string): void {
-    if (!text.trim() || text.length < this.minSegmentLength) return;
-
-    const now = Date.now();
+  public async stopSession(): Promise<void> {
+    if (!this.processing) return;
     
-    // Crear o actualizar segmento actual
-    if (!this.currentSegment || this.shouldCreateNewSegment(text)) {
-      this.finalizeCurrentSegment(); // Finalizar el anterior si existe
-      
-      this.currentSegment = {
-        id: this.segmentCounter++,
-        originalText: text,
-        translatedText: '',
-        timestamp: now,
-        status: SegmentStatus.RECORDING,
-        isPartial: true,
-        duration: 0,
-        silenceDetected: false
-      };
-      
-      this.segmentStartTime = now;
-      console.log(`Nuevo segmento parcial creado: ${this.currentSegment.id}`);
+    this.stopPeriodicSegmentation();
+    
+    if (this.translationRecognizer) {
+      try {
+        await this.translationRecognizer.stopContinuousRecognitionAsync();
+        this.translationRecognizer.close();
+        this.translationRecognizer = null;
+      } catch (error) {
+        console.error("Error stopping translation recognizer:", error);
+      }
+    }
+    
+    this.processing = false;
+    this.emit("sessionEnded", undefined);
+    console.log("Real-time translation session ended");
+  }
+
+  // Enable or disable capturing while speaking
+  public enableCapturingWhileSpeaking(enabled: boolean): void {
+    this.isCapturingWhileSpeaking = enabled;
+    this.emit("simultaneousCapture", enabled);
+    console.log(`Capturing while speaking: ${enabled ? "enabled" : "disabled"}`);
+    
+    if (enabled) {
+      this.startPeriodicSegmentation();
     } else {
-      // Actualizar segmento existente
-      this.currentSegment.originalText = text;
-      this.currentSegment.duration = now - this.segmentStartTime;
+      this.stopPeriodicSegmentation();
     }
-
-    // Traducir en tiempo real
-    this.translateSegment(this.currentSegment);
   }
-
-  private handleFinalResult(text: string, silenceDetected: boolean = true): void {
-    if (!text.trim() || text.length < this.minSegmentLength) return;
-
-    const now = Date.now();
-
-    // Finalizar segmento actual
-    if (this.currentSegment) {
-      this.currentSegment.originalText = text;
-      this.currentSegment.isPartial = false;
-      this.currentSegment.status = SegmentStatus.PROCESSING;
-      this.currentSegment.silenceDetected = silenceDetected;
-      this.currentSegment.duration = now - this.segmentStartTime;
-    } else {
-      // Crear nuevo segmento final
-      this.currentSegment = {
-        id: this.segmentCounter++,
-        originalText: text,
-        translatedText: '',
-        timestamp: now,
-        status: SegmentStatus.PROCESSING,
-        isPartial: false,
-        duration: now - this.segmentStartTime,
-        silenceDetected: silenceDetected
-      };
+  
+  // Start a timer to periodically segment speech
+  private startPeriodicSegmentation(): void {
+    if (this.captureTimer) {
+      clearInterval(this.captureTimer);
     }
-
-    console.log(`Segmento final creado: ${this.currentSegment.id} (silencio: ${silenceDetected})`);
     
-    // Almacenar en historial con orden cronológico
-    this.segmentHistory.set(this.currentSegment.id, { ...this.currentSegment });
-    
-    // Traducir y finalizar
-    this.translateSegment(this.currentSegment);
-    
-    // Limpiar para el siguiente segmento
-    this.currentSegment = null;
+    // Usar un intervalo más grande para evitar segmentación excesiva
+    this.captureTimer = setInterval(() => {
+      if (this.currentlyPlaying && this.isCapturingWhileSpeaking && this.translationRecognizer) {
+        console.log("Forcing segment creation while speaking");
+        
+        // Limpiar mapas de control para permitir nuevos segmentos
+        if (this.processedTexts.size > 100) {
+          console.log("Limpiando caché de textos procesados...");
+          this.processedTexts.clear();
+        }
+      }
+    }, Math.max(this.segmentInterval, 700)); // Intervalo mínimo para evitar segmentación excesiva
   }
-
-  private shouldCreateNewSegment(newText: string): boolean {
-    if (!this.currentSegment) return true;
-    
-    const timeSinceLastUpdate = Date.now() - this.lastSpeechTime;
-    const textLengthDifference = Math.abs(newText.length - this.currentSegment.originalText.length);
-    
-    // Crear nuevo segmento si:
-    // 1. Ha pasado mucho tiempo desde la última actualización
-    // 2. El texto es muy diferente (posible nueva oración)
-    return timeSinceLastUpdate > this.silenceTimeout || textLengthDifference > 20;
-  }
-
-  private finalizeCurrentSegment(): void {
-    if (this.currentSegment && !this.currentSegment.isPartial) {
-      this.currentSegment.status = SegmentStatus.COMPLETED;
-      this.segmentHistory.set(this.currentSegment.id, { ...this.currentSegment });
-      this.onSegmentUpdate?.(this.currentSegment);
-      console.log(`Segmento finalizado: ${this.currentSegment.id}`);
+  
+  // Stop the periodic segmentation timer
+  private stopPeriodicSegmentation(): void {
+    if (this.captureTimer) {
+      clearInterval(this.captureTimer);
+      this.captureTimer = null;
     }
   }
 
-  private async translateSegment(segment: AudioSegment): Promise<void> {
-    if (!segment.originalText.trim()) return;
-
+  // Process the segment through the TTS pipeline
+  private async synthesizeSegment(segment: AudioSegment): Promise<void> {
+    if (!this.config || !segment.translatedText || segment.processed) {
+      console.error("Cannot synthesize - missing config, translated text, or already processed");
+      return;
+    }
+    
     try {
-      segment.status = SegmentStatus.PROCESSING;
+      segment.status = SegmentStatus.SYNTHESIZING;
+      segment.processed = true; // Marcar como procesado para evitar re-sintetizar
+      this.emit("segmentUpdated", segment);
+      console.log(`Synthesizing segment ${segment.id}: "${segment.translatedText}"`);
       
-      let translatedText = '';
+      // Configure speech synthesizer
+      const speechConfig = sdk.SpeechConfig.fromSubscription(
+        this.config.key,
+        this.config.region
+      );
+      speechConfig.speechSynthesisLanguage = this.targetLanguage;
       
-      if (this.useAIEnhancement && !segment.isPartial && segment.originalText.length > 5) {
-        // Usar mejora con IA para segmentos finales
-        try {
-          // Aquí se implementaría la llamada al servicio de IA
-          // Por ahora usamos una traducción mejorada simulada
-          translatedText = await this.simulateAITranslation(segment.originalText);
-          console.log(`Traducción con IA aplicada para segmento ${segment.id}`);
-        } catch (error) {
-          console.error('Error en traducción con IA:', error);
-          translatedText = this.getBasicTranslation(segment.originalText);
-        }
-      } else {
-        // Traducción básica para segmentos parciales
-        translatedText = this.getBasicTranslation(segment.originalText);
-      }
-
-      segment.translatedText = translatedText;
-      segment.status = segment.isPartial ? SegmentStatus.RECORDING : SegmentStatus.COMPLETED;
-      
-      // Actualizar historial
-      if (!segment.isPartial) {
-        this.segmentHistory.set(segment.id, { ...segment });
+      // Use selected voice if available
+      if (this.currentVoice) {
+        speechConfig.speechSynthesisVoiceName = this.currentVoice.id;
+        console.log(`Using voice for synthesis: ${this.currentVoice.name} (${this.currentVoice.id})`);
       }
       
-      this.onSegmentUpdate?.(segment);
+      // Optimización de configuración para síntesis
+      speechConfig.setProperty(sdk.PropertyId.SpeechServiceConnection_SynthOutputFormat, "audio-16khz-32kbitrate-mono-mp3");
       
+      // Use pull stream so SDK does not auto-play audio
+      const pullStream = sdk.AudioOutputStream.createPullStream();
+      const audioConfig = sdk.AudioConfig.fromStreamOutput(pullStream);
+      const synthesizer = new sdk.SpeechSynthesizer(speechConfig, audioConfig);
+      
+      // Synthesize the translated text
+      const result = await new Promise<sdk.SpeechSynthesisResult>((resolve, reject) => {
+        synthesizer.speakTextAsync(
+          segment.translatedText!,
+          (result) => {
+            console.log(`Synthesis completed for segment ${segment.id}, reason: ${result?.reason}`);
+            if (result && result.reason === sdk.ResultReason.SynthesizingAudioCompleted) {
+              resolve(result);
+            } else {
+              console.error(`Synthesis failed: ${result?.reason}`);
+              reject(new Error(`Speech synthesis failed: ${result?.reason}`));
+            }
+            synthesizer.close();
+          },
+          (error) => {
+            console.error(`Synthesis error for segment ${segment.id}:`, error);
+            reject(error);
+            synthesizer.close();
+          }
+        );
+      });
+      
+      // Update segment with audio data
+      segment.audioData = result.audioData;
+      segment.status = SegmentStatus.PLAYING;
+      this.emit("segmentUpdated", segment);
+      console.log(`Audio data ready for segment ${segment.id}, size: ${result.audioData.byteLength} bytes`);
+      
+      // Queue for sequential playback
+      this.queueSegmentForPlayback(segment);
     } catch (error) {
-      console.error('Translation error:', error);
-      segment.translatedText = `Error de traducción: ${error}`;
+      console.error("Error synthesizing speech:", error);
       segment.status = SegmentStatus.ERROR;
-      this.onSegmentUpdate?.(segment);
+      this.emit("segmentError", { segment, error: error as Error });
     }
   }
 
-  private async simulateAITranslation(text: string): Promise<string> {
-    // Simulación de mejora con IA - aquí se integraría con el servicio real
-    const delay = Math.random() * 500 + 200; // 200-700ms de delay simulado
-    await new Promise(resolve => setTimeout(resolve, delay));
-    
-    return `[AI Enhanced] ${this.getBasicTranslation(text)}`;
-  }
-
-  private getBasicTranslation(text: string): string {
-    // Traducción básica placeholder
-    const translations: Record<string, string> = {
-      'hola': 'hello',
-      'buenos días': 'good morning',
-      'buenas tardes': 'good afternoon',
-      'buenas noches': 'good evening',
-      'gracias': 'thank you',
-      'por favor': 'please',
-      'lo siento': 'sorry',
-      'disculpe': 'excuse me'
-    };
-    
-    const lowerText = text.toLowerCase();
-    for (const [spanish, english] of Object.entries(translations)) {
-      if (lowerText.includes(spanish)) {
-        return text.replace(new RegExp(spanish, 'gi'), english);
-      }
-    }
-    
-    return `[Translated] ${text}`;
-  }
-
-  private handleRecognitionError(errorDetails: string): void {
-    console.error('Recognition error details:', errorDetails);
-    this.isListening = false;
-    
-    if (this.currentSegment) {
-      this.currentSegment.status = SegmentStatus.ERROR;
-      this.currentSegment.translatedText = `Error: ${errorDetails}`;
-      this.onSegmentUpdate?.(this.currentSegment);
-    }
-    
-    this.onError?.(`Recognition error: ${errorDetails}`);
-  }
-
-  public async stopListening(): Promise<void> {
-    if (!this.isListening || !this.recognizer) {
+  // Agregar segmento a la cola de reproducción secuencial
+  private queueSegmentForPlayback(segment: AudioSegment): void {
+    if (!segment.audioData) {
+      console.error(`Segment ${segment.id} has no audio data to play`);
       return;
+    }
+    
+    console.log(`Queuing segment ${segment.id} for playback`);
+    
+    // Agregar a la cola de reproducción secuencial
+    this.playbackQueue = this.playbackQueue.then(async () => {
+      if (!segment.audioData) return;
+      
+      console.log(`Playing segment ${segment.id} from queue`);
+      this.currentlyPlaying = true;
+      
+      try {
+        await this.playAudio(segment.audioData);
+        
+        // Marcar como completado después de reproducirse
+        segment.status = SegmentStatus.COMPLETED;
+        this.emit("segmentCompleted", segment);
+        console.log(`Playback completed for segment ${segment.id}`);
+        
+        // Eliminar de la cola de audio una vez completado
+        this.audioQueue = this.audioQueue.filter(s => s.id !== segment.id);
+      } catch (error) {
+        console.error(`Error playing segment ${segment.id}:`, error);
+        segment.status = SegmentStatus.ERROR;
+        this.emit("segmentError", { segment, error: error as Error });
+      } finally {
+        this.currentlyPlaying = false;
+        console.log(`Playback queue continues, segments remaining: ${this.audioQueue.length}`);
+      }
+    }).catch(error => {
+      console.error("Error in playback queue:", error);
+      this.currentlyPlaying = false;
+    });
+  }
+
+  private async playAudio(audioData: ArrayBuffer): Promise<void> {
+    if (!this.audioContext) {
+      console.log("Creating new audio context");
+      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
     }
 
     try {
-      // Finalizar segmento actual antes de detener
-      this.finalizeCurrentSegment();
+      console.log("Decoding audio data...");
+      const audioBuffer = await this.audioContext.decodeAudioData(audioData);
+      console.log("Audio data decoded successfully, duration:", audioBuffer.duration);
       
-      await this.recognizer.stopContinuousRecognitionAsync();
+      const sourceNode = this.audioContext.createBufferSource();
+      sourceNode.buffer = audioBuffer;
+      
+      // Usar la velocidad de voz configurada
+      sourceNode.playbackRate.value = this.voiceSpeed; 
+      console.log(`Playback rate set to: ${this.voiceSpeed}x`);
+      
+      sourceNode.connect(this.audioContext.destination);
+      
+      return new Promise<void>((resolve) => {
+        sourceNode.onended = () => {
+          console.log("Audio playback ended");
+          resolve();
+        };
+        console.log("Starting audio playback");
+        sourceNode.start(0);
+      });
+    } catch (error) {
+      console.error("Error playing audio:", error);
+      throw error;
+    }
+  }
+
+  public dispose() {
+    this.stopPeriodicSegmentation();
+    
+    if (this.recognizer) {
       this.recognizer.close();
       this.recognizer = null;
-      this.isListening = false;
-      
-      console.log('Reconocimiento detenido correctamente');
-    } catch (error) {
-      console.error('Error stopping recognition:', error);
-      this.onError?.(`Error stopping recognition: ${error}`);
     }
-  }
-
-  public isCurrentlyListening(): boolean {
-    return this.isListening;
-  }
-
-  public clearHistory(): void {
-    this.segmentHistory.clear();
-    this.segmentCounter = 0;
-    this.currentSegment = null;
-    console.log('Historial de segmentos limpiado');
-  }
-
-  public getSegmentHistory(): AudioSegment[] {
-    // Retornar segmentos ordenados cronológicamente
-    return Array.from(this.segmentHistory.values())
-      .sort((a, b) => a.timestamp - b.timestamp);
-  }
-
-  public getSegmentStats(): { total: number; completed: number; errors: number } {
-    const segments = Array.from(this.segmentHistory.values());
-    return {
-      total: segments.length,
-      completed: segments.filter(s => s.status === SegmentStatus.COMPLETED).length,
-      errors: segments.filter(s => s.status === SegmentStatus.ERROR).length
-    };
+    if (this.translationRecognizer) {
+      this.translationRecognizer.close();
+      this.translationRecognizer = null;
+    }
+    if (this.synthesizer) {
+      this.synthesizer.close();
+      this.synthesizer = null;
+    }
+    if (this.audioContext) {
+      this.audioContext.close();
+      this.audioContext = null;
+    }
+    
+    this.processing = false;
+    this.audioQueue = [];
+    this.processedTexts.clear();
+    this.playbackQueue = Promise.resolve();
   }
 }
 
-// Instancia singleton exportada
-export const realTimeTranslationService = new RealTimeTranslationService('', '');
+export const realTimeTranslationService = new RealTimeTranslationService();

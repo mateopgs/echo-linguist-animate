@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, useEffect, useRef } from "react";
 import { azureSpeechService } from "../services/azureSpeechService";
-import { RealTimeTranslationService, SegmentStatus, AudioSegment } from "../services/realTimeTranslationService";
+import { realTimeTranslationService, SegmentStatus, AudioSegment } from "../services/realTimeTranslationService";
 import { SupportedLanguages, TranscriptionResult, AssistantState, AzureConfig, VoiceOption } from "../types/voice-assistant";
 import { useToast } from "../hooks/use-toast";
 import { azureOpenAIService } from "../services/azureOpenAIService";
@@ -43,10 +43,6 @@ type VoiceAssistantContextType = {
   setVoiceSpeed: (speed: number) => void;
   useAIEnhancement: boolean;
   setUseAIEnhancement: (enabled: boolean) => void;
-  // Nuevas funciones para control mejorado
-  silenceTimeout: number;
-  setSilenceTimeout: (ms: number) => void;
-  getSegmentStats: () => { total: number; completed: number; errors: number };
 };
 
 const VoiceAssistantContext = createContext<VoiceAssistantContextType | null>(null);
@@ -83,16 +79,8 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
   const [availableVoices, setAvailableVoices] = useState<VoiceOption[]>([]);
   const [selectedVoice, setSelectedVoice] = useState<VoiceOption | null>(null);
   const [voiceSpeed, setVoiceSpeed] = useState(1.1); // Valor por defecto para velocidad de la voz
-  const [useAIEnhancement, setUseAIEnhancement] = useState(true);
-  const [silenceTimeout, setSilenceTimeoutState] = useState(200); // Nuevo control de silencio optimizado
+  const [useAIEnhancement, setUseAIEnhancement] = useState(true); // Nuevo: activar mejora de OpenAI
   const { toast } = useToast();
-
-  // Create real-time translation service instance
-  const realTimeTranslationServiceRef = useRef<RealTimeTranslationService | null>(null);
-  
-  // Cola de síntesis para manejar múltiples traducciones
-  const synthesisQueueRef = useRef<Array<{ text: string; language: string; segmentId: number }>>([]);
-  const isSynthesizingRef = useRef(false);
 
   // Monitorear cambios importantes con logs
   useEffect(() => {
@@ -111,16 +99,19 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
   useEffect(() => {
     console.log("Voice speed changed:", voiceSpeed);
     azureSpeechService.setVoiceSpeed(voiceSpeed);
+    realTimeTranslationService.setVoiceSpeed(voiceSpeed);
   }, [voiceSpeed]);
 
   // Apply segment interval to the service when it changes
   useEffect(() => {
     console.log("Setting segment interval to:", segmentInterval);
+    realTimeTranslationService.setSegmentDuration(segmentInterval);
   }, [segmentInterval]);
 
   // Update silence detection timeouts in the service
   useEffect(() => {
     console.log(`Setting silence timeouts: initial=${initialSilenceTimeout}ms, end=${endSilenceTimeout}ms`);
+    realTimeTranslationService.setSilenceTimeouts(initialSilenceTimeout, endSilenceTimeout);
   }, [initialSilenceTimeout, endSilenceTimeout]);
 
   // Clean up active segments periodically
@@ -144,12 +135,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
         const config: AzureConfig = { key: apiKey, region };
         console.log("Configuring services with:", config);
         azureSpeechService.setConfig(config);
-        
-        // Reinitialize real-time service with new config
-        if (realTimeTranslationServiceRef.current) {
-          realTimeTranslationServiceRef.current = new RealTimeTranslationService(apiKey, region, sourceLanguage, targetLanguage);
-        }
-        
+        realTimeTranslationService.setConfig(config);
         setIsConfigured(true);
         
         // Load supported languages
@@ -181,6 +167,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
               if (defaultVoice) {
                 setSelectedVoice(defaultVoice);
                 azureSpeechService.setVoice(defaultVoice);
+                realTimeTranslationService.setVoice(defaultVoice);
               }
             }
           })
@@ -209,9 +196,8 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
   // Update language settings in real-time service when they change
   useEffect(() => {
     console.log(`Setting languages: source=${sourceLanguage}, target=${targetLanguage}`);
-    if (realTimeTranslationServiceRef.current) {
-      realTimeTranslationServiceRef.current.setLanguages(sourceLanguage, targetLanguage);
-    }
+    realTimeTranslationService.setSourceLanguage(sourceLanguage);
+    realTimeTranslationService.setTargetLanguage(targetLanguage);
     
     // Update selected voice when target language changes
     if (availableVoices.length > 0) {
@@ -221,6 +207,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
         console.log(`Changing voice to match target language: ${voiceForLanguage.name}`);
         setSelectedVoice(voiceForLanguage);
         azureSpeechService.setVoice(voiceForLanguage);
+        realTimeTranslationService.setVoice(voiceForLanguage);
       }
     }
   }, [sourceLanguage, targetLanguage, availableVoices, selectedVoice]);
@@ -230,302 +217,261 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
     if (selectedVoice) {
       console.log(`Setting voice: ${selectedVoice.name} (${selectedVoice.id})`);
       azureSpeechService.setVoice(selectedVoice);
+      realTimeTranslationService.setVoice(selectedVoice);
     }
   }, [selectedVoice]);
 
-  // Función mejorada para procesar la cola de síntesis
-  const processSynthesisQueue = async () => {
-    if (isSynthesizingRef.current || synthesisQueueRef.current.length === 0) {
-      return;
-    }
+  // Set up real-time translation event handlers
+  useEffect(() => {
+    const handleSegmentCreated = (segment: AudioSegment) => {
+      console.log("Segment created:", segment);
+      setActiveSegments(prev => [...prev, segment]);
+    };
 
-    isSynthesizingRef.current = true;
-    const item = synthesisQueueRef.current.shift();
+    const handleSegmentUpdated = (segment: AudioSegment) => {
+      console.log("Segment updated:", segment);
+      
+      if (segment.id === -1) {
+        // Esto es una actualización temporal de reconocimiento en curso
+        if (segment.originalText) {
+          setCurrentTranscription(prev => ({
+            originalText: segment.originalText || prev.originalText,
+            translatedText: segment.translatedText || prev.translatedText
+          }));
+        }
+        return;
+      }
+      
+      setActiveSegments(prev => {
+        return prev.map(s => s.id === segment.id ? segment : s);
+      });
+      
+      // Update current transcription
+      if (segment.originalText) {
+        setCurrentTranscription(prev => ({
+          originalText: segment.originalText || prev.originalText,
+          translatedText: segment.translatedText || prev.translatedText
+        }));
+      }
+    };
+
+    const handleSegmentCompleted = async (segment: AudioSegment) => {
+      console.log("Segment completed:", segment);
+      
+      // Add to transcription history
+      if (segment.originalText && segment.translatedText) {
+        let finalTranslation = segment.translatedText;
+        
+        // Aplicar mejora con IA si está habilitado
+        if (useAIEnhancement && segment.originalText.length > 5) {
+          try {
+            console.log("Mejorando traducción con IA...");
+            setState(AssistantState.PROCESSING);
+            finalTranslation = await azureOpenAIService.improveTranslation(
+              segment.originalText,
+              segment.translatedText,
+              sourceLanguage,
+              targetLanguage
+            );
+            setState(AssistantState.LISTENING);
+          } catch (error) {
+            console.error("Error al aplicar mejora con IA:", error);
+          }
+        }
+        
+        const result: TranscriptionResult = {
+          originalText: segment.originalText,
+          translatedText: finalTranslation,
+          fromLanguage: sourceLanguage,
+          toLanguage: targetLanguage,
+          timestamp: new Date(segment.timestamp),
+        };
+        setTranscriptionHistory(prev => [...prev, result]);
+        
+        // Actualizar el segmento con la traducción mejorada
+        if (finalTranslation !== segment.translatedText) {
+          segment.translatedText = finalTranslation;
+          setActiveSegments(prev => prev.map(s => s.id === segment.id ? { ...s, translatedText: finalTranslation } : s));
+        }
+      }
+      
+      // Update active segments list
+      setActiveSegments(prev => prev.map(s => s.id === segment.id ? segment : s));
+    };
     
-    if (!item) {
-      isSynthesizingRef.current = false;
+    const handleSegmentError = ({ segment, error }: { segment: AudioSegment, error: Error }) => {
+      console.error(`Error in segment ${segment.id}:`, error);
+      
+      toast({
+        title: "Error en la traducción",
+        description: `Error en el segmento ${segment.id}: ${error.message}`,
+        variant: "destructive",
+      });
+      
+      // Update segment status in the UI
+      setActiveSegments(prev => prev.map(s => s.id === segment.id ? { ...s, status: SegmentStatus.ERROR } : s));
+    };
+
+    const handleSessionStarted = () => {
+      console.log("Real-time translation session started");
+      setState(AssistantState.LISTENING);
+      // Reset AI context for new session
+      if (useAIEnhancement) {
+        console.log("Clearing AI conversation history for new session");
+        azureOpenAIService.clearHistory();
+      }
+    };
+
+    const handleSessionEnded = () => {
+      console.log("Real-time translation session ended");
+      setState(AssistantState.IDLE);
+    };
+    
+    const handleSimultaneousCapture = (enabled: boolean) => {
+      console.log("Simultaneous capture setting updated:", enabled);
+      setCapturingWhileSpeaking(enabled);
+    };
+
+    // Register event handlers
+    realTimeTranslationService.on("segmentCreated", handleSegmentCreated);
+    realTimeTranslationService.on("segmentUpdated", handleSegmentUpdated);
+    realTimeTranslationService.on("segmentCompleted", handleSegmentCompleted);
+    realTimeTranslationService.on("segmentError", handleSegmentError);
+    realTimeTranslationService.on("sessionStarted", handleSessionStarted);
+    realTimeTranslationService.on("sessionEnded", handleSessionEnded);
+    realTimeTranslationService.on("simultaneousCapture", handleSimultaneousCapture);
+
+    return () => {
+      // Clean up event handlers
+      realTimeTranslationService.off("segmentCreated", handleSegmentCreated);
+      realTimeTranslationService.off("segmentUpdated", handleSegmentUpdated);
+      realTimeTranslationService.off("segmentCompleted", handleSegmentCompleted); 
+      realTimeTranslationService.off("segmentError", handleSegmentError);
+      realTimeTranslationService.off("sessionStarted", handleSessionStarted);
+      realTimeTranslationService.off("sessionEnded", handleSessionEnded);
+      realTimeTranslationService.off("simultaneousCapture", handleSimultaneousCapture);
+    };
+  }, [sourceLanguage, targetLanguage, toast, useAIEnhancement]);
+
+  // Effect to update the capturing while speaking setting
+  useEffect(() => {
+    if (isRealTimeMode) {
+      console.log("Updating capturing while speaking setting:", isCapturingWhileSpeaking);
+      realTimeTranslationService.enableCapturingWhileSpeaking(isCapturingWhileSpeaking);
+    }
+  }, [isCapturingWhileSpeaking, isRealTimeMode]);
+
+  // Original listening function for non-real-time mode
+  const startRegularListening = async () => {
+    if (!isConfigured) {
+      console.error("Azure Speech Service not configured");
+      setState(AssistantState.ERROR);
+      toast({
+        title: "Error",
+        description: "El servicio de Azure Speech no está configurado",
+        variant: "destructive",
+      });
       return;
     }
 
     try {
-      console.log(`Sintetizando segmento ${item.segmentId}: ${item.text}`);
+      setState(AssistantState.LISTENING);
+      setCurrentTranscription({ originalText: "", translatedText: "" });
       
-      // Solo cambiar estado a SPEAKING si no estamos capturando mientras hablamos
-      if (!isCapturingWhileSpeaking) {
-        setState(AssistantState.SPEAKING);
+      // Limpiar el contexto de OpenAI al iniciar una nueva sesión
+      if (useAIEnhancement) {
+        azureOpenAIService.clearHistory();
       }
 
-      const audioBuffer = await azureSpeechService.synthesizeSpeech(item.text, item.language);
-      await azureSpeechService.playAudio(audioBuffer);
-      
-      console.log(`Reproducción completada para segmento ${item.segmentId}`);
+      const session = await azureSpeechService.startRecognition(
+        sourceLanguage,
+        targetLanguage,
+        (interimResult) => {
+          console.log("Interim recognition result:", interimResult);
+          setCurrentTranscription((prev) => ({
+            ...prev,
+            originalText: interimResult,
+          }));
+        },
+        async (originalText, translatedText) => {
+          console.log("Final recognition result:", originalText);
+          console.log("Translation:", translatedText);
+          
+          setState(AssistantState.PROCESSING);
+          
+          let finalTranslation = translatedText;
+          
+          // Aplicar mejora con IA si está habilitado
+          if (useAIEnhancement && originalText.length > 5) {
+            try {
+              console.log("Mejorando traducción con IA...");
+              finalTranslation = await azureOpenAIService.improveTranslation(
+                originalText,
+                translatedText,
+                sourceLanguage,
+                targetLanguage
+              );
+            } catch (error) {
+              console.error("Error al aplicar mejora con IA:", error);
+              finalTranslation = translatedText;
+            }
+          }
+          
+          const result: TranscriptionResult = {
+            originalText,
+            translatedText: finalTranslation,
+            fromLanguage: sourceLanguage,
+            toLanguage: targetLanguage,
+            timestamp: new Date(),
+          };
 
+          setCurrentTranscription({
+            originalText,
+            translatedText: finalTranslation,
+          });
+
+          setTranscriptionHistory((prev) => [...prev, result]);
+
+          // Speak the translated text
+          setState(AssistantState.SPEAKING);
+          try {
+            console.log("Synthesizing speech for:", finalTranslation);
+            const audioBuffer = await azureSpeechService.synthesizeSpeech(
+              finalTranslation,
+              targetLanguage
+            );
+            console.log("Audio synthesized, playing...");
+            await azureSpeechService.playAudio(audioBuffer);
+            console.log("Audio playback completed");
+          } catch (error) {
+            console.error("Error synthesizing speech:", error);
+            toast({
+              title: "Error",
+              description: "Error al sintetizar la voz",
+              variant: "destructive",
+            });
+          } finally {
+            setState(AssistantState.IDLE);
+          }
+        }
+      );
+
+      recognitionSessionRef.current = session;
     } catch (error) {
-      console.error(`Error sintetizando segmento ${item.segmentId}:`, error);
-      toast({
-        title: "Error",
-        description: `Error al sintetizar el segmento ${item.segmentId}`,
-        variant: "destructive",
-      });
-    } finally {
-      isSynthesizingRef.current = false;
-      
-      // Si no estamos capturando mientras hablamos, volver a LISTENING
-      if (!isCapturingWhileSpeaking && realTimeTranslationServiceRef.current?.isCurrentlyListening()) {
-        setState(AssistantState.LISTENING);
-      } else if (!realTimeTranslationServiceRef.current?.isCurrentlyListening()) {
-        setState(AssistantState.IDLE);
-      }
-
-      // Procesar siguiente elemento en la cola
-      setTimeout(() => processSynthesisQueue(), 100);
-    }
-  };
-
-  // Set up real-time translation event handlers
-  useEffect(() => {
-    if (!realTimeTranslationServiceRef.current) return;
-
-    const service = realTimeTranslationServiceRef.current;
-
-    const handleSegmentUpdate = (segment: AudioSegment) => {
-      console.log(`Segmento actualizado: ${segment.id} (${segment.status})`);
-      
-      // Actualizar segmentos activos
-      setActiveSegments(prev => {
-        const existingIndex = prev.findIndex(s => s.id === segment.id);
-        let newSegments: AudioSegment[];
-        
-        if (existingIndex !== -1) {
-          newSegments = [...prev];
-          newSegments[existingIndex] = segment;
-        } else {
-          newSegments = [...prev, segment];
-        }
-        
-        return newSegments.sort((a, b) => a.timestamp - b.timestamp);
-      });
-      
-      // Actualizar transcripción actual
-      if (segment.originalText) {
-        setCurrentTranscription({
-          originalText: segment.originalText,
-          translatedText: segment.translatedText || ''
-        });
-      }
-
-      // Manejar segmentos completados para síntesis automática
-      if (segment.status === SegmentStatus.COMPLETED && 
-          segment.originalText && 
-          segment.translatedText && 
-          segment.translatedText.trim() !== '') {
-        
-        console.log(`Segmento completado, agregando a cola de síntesis: ${segment.id}`);
-        
-        // Agregar al historial
-        const result: TranscriptionResult = {
-          originalText: segment.originalText,
-          translatedText: segment.translatedText,
-          fromLanguage: sourceLanguage,
-          toLanguage: targetLanguage,
-          timestamp: new Date(segment.timestamp),
-        };
-        
-        setTranscriptionHistory(prev => {
-          const exists = prev.some(r => 
-            r.originalText === result.originalText && 
-            Math.abs(r.timestamp.getTime() - result.timestamp.getTime()) < 1000
-          );
-          
-          if (exists) return prev;
-          return [...prev, result].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-        });
-
-        // Agregar a la cola de síntesis
-        synthesisQueueRef.current.push({
-          text: segment.translatedText,
-          language: targetLanguage,
-          segmentId: segment.id
-        });
-
-        // Procesar cola de síntesis
-        processSynthesisQueue();
-      }
-
-      // Manejar errores
-      if (segment.status === SegmentStatus.ERROR) {
-        toast({
-          title: "Error en segmento",
-          description: `Error en el segmento ${segment.id}: ${segment.translatedText}`,
-          variant: "destructive",
-        });
-      }
-    };
-
-    const handleError = (error: string) => {
-      console.error("Error en traducción en tiempo real:", error);
+      console.error("Error starting listening:", error);
       setState(AssistantState.ERROR);
       toast({
         title: "Error",
-        description: error,
+        description: "Error al iniciar el reconocimiento de voz",
         variant: "destructive",
       });
-    };
-
-    service.setCallbacks(handleSegmentUpdate, handleError);
-
-    return () => {
-      // Cleanup si es necesario
-    };
-  }, [sourceLanguage, targetLanguage, toast, isCapturingWhileSpeaking]);
-
-  // Update language settings in real-time service when they change
-  useEffect(() => {
-    console.log(`Setting languages: source=${sourceLanguage}, target=${targetLanguage}`);
-    if (realTimeTranslationServiceRef.current) {
-      realTimeTranslationServiceRef.current.setLanguages(sourceLanguage, targetLanguage);
     }
-    
-    // Update selected voice when target language changes
-    if (availableVoices.length > 0) {
-      const targetLangCode = targetLanguage.split('-')[0];
-      const voiceForLanguage = availableVoices.find(v => v.id.startsWith(targetLangCode));
-      if (voiceForLanguage && (!selectedVoice || !selectedVoice.id.startsWith(targetLangCode))) {
-        console.log(`Changing voice to match target language: ${voiceForLanguage.name}`);
-        setSelectedVoice(voiceForLanguage);
-        azureSpeechService.setVoice(voiceForLanguage);
-      }
-    }
-  }, [sourceLanguage, targetLanguage, availableVoices, selectedVoice]);
-
-  // Update voice when it changes
-  useEffect(() => {
-    if (selectedVoice) {
-      console.log(`Setting voice: ${selectedVoice.name} (${selectedVoice.id})`);
-      azureSpeechService.setVoice(selectedVoice);
-    }
-  }, [selectedVoice]);
-
-  // Configurar servicio de traducción en tiempo real con configuración mejorada
-  useEffect(() => {
-    if (apiKey && region && realTimeTranslationServiceRef.current) {
-      try {
-        // Configurar servicio con nuevos parámetros
-        realTimeTranslationServiceRef.current.setLanguages(sourceLanguage, targetLanguage);
-        realTimeTranslationServiceRef.current.setAIEnhancement(useAIEnhancement);
-        realTimeTranslationServiceRef.current.setSilenceTimeout(silenceTimeout);
-        
-        console.log(`Servicio configurado: silencio=${silenceTimeout}ms, AI=${useAIEnhancement}`);
-      } catch (error) {
-        console.error('Error configurando servicio en tiempo real:', error);
-      }
-    }
-  }, [apiKey, region, sourceLanguage, targetLanguage, useAIEnhancement, silenceTimeout]);
-
-  // Función mejorada para configurar timeout de silencio
-  const setSilenceTimeout = (ms: number) => {
-    const clampedValue = Math.max(100, Math.min(1000, ms)); // Entre 100ms y 1s
-    setSilenceTimeoutState(clampedValue);
-    if (realTimeTranslationServiceRef.current) {
-      realTimeTranslationServiceRef.current.setSilenceTimeout(clampedValue);
-    }
-    console.log(`Timeout de silencio actualizado: ${clampedValue}ms`);
   };
 
-  // Función para obtener estadísticas de segmentos
-  const getSegmentStats = () => {
-    if (realTimeTranslationServiceRef.current) {
-      return realTimeTranslationServiceRef.current.getSegmentStats();
-    }
-    return { total: 0, completed: 0, errors: 0 };
-  };
-
-  // Manejo mejorado de segmentos con orden cronológico garantizado
-  useEffect(() => {
-    const handleSegmentUpdate = (segment: AudioSegment) => {
-      console.log(`Segmento actualizado: ${segment.id} (${segment.status})`);
-      
-      setActiveSegments(prev => {
-        const existingIndex = prev.findIndex(s => s.id === segment.id);
-        let newSegments: AudioSegment[];
-        
-        if (existingIndex !== -1) {
-          // Actualizar segmento existente
-          newSegments = [...prev];
-          newSegments[existingIndex] = segment;
-        } else {
-          // Agregar nuevo segmento
-          newSegments = [...prev, segment];
-        }
-        
-        // Ordenar por timestamp para garantizar orden cronológico
-        return newSegments.sort((a, b) => a.timestamp - b.timestamp);
-      });
-      
-      // Actualizar transcripción actual con el segmento más reciente
-      if (segment.originalText) {
-        setCurrentTranscription({
-          originalText: segment.originalText,
-          translatedText: segment.translatedText || ''
-        });
-      }
-
-      // Agregar al historial si está completado
-      if (segment.status === SegmentStatus.COMPLETED && segment.originalText && segment.translatedText) {
-        const result: TranscriptionResult = {
-          originalText: segment.originalText,
-          translatedText: segment.translatedText,
-          fromLanguage: sourceLanguage,
-          toLanguage: targetLanguage,
-          timestamp: new Date(segment.timestamp),
-        };
-        
-        setTranscriptionHistory(prev => {
-          // Evitar duplicados
-          const exists = prev.some(r => 
-            r.originalText === result.originalText && 
-            Math.abs(r.timestamp.getTime() - result.timestamp.getTime()) < 1000
-          );
-          
-          if (exists) return prev;
-          
-          return [...prev, result].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-        });
-      }
-
-      // Manejar errores
-      if (segment.status === SegmentStatus.ERROR) {
-        toast({
-          title: "Error en segmento",
-          description: `Error en el segmento ${segment.id}: ${segment.translatedText}`,
-          variant: "destructive",
-        });
-      }
-    };
-
-    const handleError = (error: string) => {
-      console.error("Error en traducción en tiempo real:", error);
-      setState(AssistantState.ERROR);
-      toast({
-        title: "Error",
-        description: error,
-        variant: "destructive",
-      });
-    };
-
-    // Configurar callbacks
-    if (realTimeTranslationServiceRef.current) {
-      realTimeTranslationServiceRef.current.setCallbacks(handleSegmentUpdate, handleError);
-    }
-
-    return () => {
-      // Cleanup si es necesario
-    };
-  }, [sourceLanguage, targetLanguage, toast]);
-
-  // Función mejorada para iniciar traducción en tiempo real
+  // Start real-time translation session
   const startRealTimeTranslation = async () => {
     if (!isConfigured) {
+      console.error("Azure Speech Service not configured");
       setState(AssistantState.ERROR);
       toast({
         title: "Error",
@@ -540,25 +486,15 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
       setCurrentTranscription({ originalText: "", translatedText: "" });
       setActiveSegments([]);
       
-      // Limpiar cola de síntesis
-      synthesisQueueRef.current = [];
-      isSynthesizingRef.current = false;
-      
-      // Limpiar historial de OpenAI y del servicio
+      // Limpiar el contexto de OpenAI al iniciar una nueva sesión
       if (useAIEnhancement) {
         azureOpenAIService.clearHistory();
       }
-      if (realTimeTranslationServiceRef.current) {
-        realTimeTranslationServiceRef.current.clearHistory();
-      }
       
-      console.log(`Iniciando traducción en tiempo real. Captura mientras habla: ${isCapturingWhileSpeaking}`);
-      if (realTimeTranslationServiceRef.current) {
-        await realTimeTranslationServiceRef.current.startListening();
-      }
-      
+      console.log("Starting real-time translation session...");
+      await realTimeTranslationService.startSession();
     } catch (error) {
-      console.error("Error iniciando traducción en tiempo real:", error);
+      console.error("Error starting real-time translation:", error);
       setState(AssistantState.ERROR);
       toast({
         title: "Error",
@@ -569,33 +505,28 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
   };
 
   const startListening = async () => {
-    console.log("Iniciando escucha en modo tiempo real continuo");
-    await startRealTimeTranslation();
+    console.log("Starting listening in mode:", isRealTimeMode ? "real-time" : "regular");
+    if (isRealTimeMode) {
+      await startRealTimeTranslation();
+    } else {
+      await startRegularListening();
+    }
   };
 
   const stopListening = () => {
-    console.log("Deteniendo escucha...");
-    if (realTimeTranslationServiceRef.current) {
-      realTimeTranslationServiceRef.current.stopListening();
-      
-      // Limpiar cola de síntesis al detener
-      synthesisQueueRef.current = [];
-      isSynthesizingRef.current = false;
-      
+    console.log("Stopping listening in mode:", isRealTimeMode ? "real-time" : "regular");
+    if (isRealTimeMode) {
+      realTimeTranslationService.stopSession();
+    } else if (recognitionSessionRef.current) {
+      recognitionSessionRef.current.stop();
+      recognitionSessionRef.current = null;
       setState(AssistantState.IDLE);
-      
-      const stats = getSegmentStats();
-      console.log(`Sesión finalizada - Segmentos: ${stats.total}, Completados: ${stats.completed}, Errores: ${stats.errors}`);
     }
   };
 
   const clearTranscriptionHistory = () => {
     setTranscriptionHistory([]);
     setActiveSegments([]);
-    if (realTimeTranslationServiceRef.current) {
-      realTimeTranslationServiceRef.current.clearHistory();
-    }
-    console.log("Historial de transcripciones limpiado");
   };
 
   // Clean up resources when component unmounts
@@ -605,10 +536,8 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
       if (recognitionSessionRef.current) {
         recognitionSessionRef.current.stop();
       }
-      if (realTimeTranslationServiceRef.current) {
-        realTimeTranslationServiceRef.current.stopListening();
-      }
       azureSpeechService.dispose();
+      realTimeTranslationService.dispose();
     };
   }, []);
 
@@ -648,10 +577,7 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
         voiceSpeed,
         setVoiceSpeed,
         useAIEnhancement,
-        setUseAIEnhancement,
-        silenceTimeout,
-        setSilenceTimeout,
-        getSegmentStats
+        setUseAIEnhancement
       }}
     >
       {children}
