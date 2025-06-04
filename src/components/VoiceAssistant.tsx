@@ -1,4 +1,3 @@
-
 import React, { useEffect } from "react";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
@@ -65,7 +64,7 @@ const VoiceAssistant: React.FC = () => {
   });
 
   return (
-    <Card className="w-full max-w-full sm:max-w-md md:max-w-2xl mx-auto shadow-lg">
+    <Card onClick={handleToggleListen} className="w-screen h-screen shadow-lg cursor-pointer">
       <CardHeader
         style={{ background: 'linear-gradient(to right, white 0%, white 15%, #7c3aed 100%)' }}
         className="text-white rounded-t-lg px-3 py-2 sm:px-4 sm:py-3 shadow-sm"
@@ -155,26 +154,6 @@ const VoiceAssistant: React.FC = () => {
             targetLanguageName={getLanguageName(targetLanguage)}
           />
         )}
-
-        <div className="flex justify-center pt-2">
-          <Button
-            onClick={handleToggleListen}
-            size="lg"
-            className={`rounded-full w-12 h-12 sm:w-16 sm:h-16 p-0 ${
-              state === AssistantState.LISTENING
-                ? "bg-red-500 hover:bg-red-600"
-                : "bg-voiceAssistant-primary hover:bg-voiceAssistant-primary/90"
-            }`}
-          >
-            {state === AssistantState.LISTENING ? (
-              <MicOff size={24} />
-            ) : state === AssistantState.SPEAKING ? (
-              <Volume size={24} />
-            ) : (
-              <Mic size={24} />
-            )}
-          </Button>
-        </div>
       </CardContent>
     </Card>
   );
