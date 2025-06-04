@@ -1,4 +1,3 @@
-
 import React from 'react';
 import './App.css';
 import VoiceAssistant from './components/VoiceAssistant';
@@ -8,7 +7,7 @@ import { Toaster } from './components/ui/toaster';
 const App: React.FC = () => {
   return (
     <VoiceAssistantProvider>
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <div className="min-h-screen flex items-center justify-center p-4">
         <VoiceAssistant />
       </div>
       <Toaster />

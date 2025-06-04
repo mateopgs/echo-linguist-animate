@@ -1,5 +1,5 @@
-
 import type { Config } from "tailwindcss";
+import defaultTheme from 'tailwindcss/defaultTheme';
 
 export default {
 	darkMode: ["class"],
@@ -112,7 +112,10 @@ export default {
 				'wave': 'wave 0.5s infinite',
 				'pulse-slow': 'pulse-slow 2s infinite',
 				'fade-in': 'fade-in 0.5s ease-out'
-			}
+			},
+			fontFamily: {
+				sans: ['Poppins', ...defaultTheme.fontFamily.sans],
+			},
 		}
 	},
 	plugins: [require("tailwindcss-animate")],
