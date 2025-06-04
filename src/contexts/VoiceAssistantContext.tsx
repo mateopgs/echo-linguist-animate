@@ -419,12 +419,12 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
 
   // Configurar servicio de traducción en tiempo real con configuración mejorada
   useEffect(() => {
-    if (apiKey && region) {
+    if (apiKey && region && realTimeTranslationServiceRef.current) {
       try {
         // Configurar servicio con nuevos parámetros
-        realTimeTranslationService.setLanguages(sourceLanguage, targetLanguage);
-        realTimeTranslationService.setAIEnhancement(useAIEnhancement);
-        realTimeTranslationService.setSilenceTimeout(silenceTimeout);
+        realTimeTranslationServiceRef.current.setLanguages(sourceLanguage, targetLanguage);
+        realTimeTranslationServiceRef.current.setAIEnhancement(useAIEnhancement);
+        realTimeTranslationServiceRef.current.setSilenceTimeout(silenceTimeout);
         
         console.log(`Servicio configurado: silencio=${silenceTimeout}ms, AI=${useAIEnhancement}`);
       } catch (error) {
@@ -437,7 +437,9 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
   const setSilenceTimeout = (ms: number) => {
     const clampedValue = Math.max(100, Math.min(1000, ms)); // Entre 100ms y 1s
     setSilenceTimeoutState(clampedValue);
-    realTimeTranslationService.setSilenceTimeout(clampedValue);
+    if (realTimeTranslationServiceRef.current) {
+      realTimeTranslationServiceRef.current.setSilenceTimeout(clampedValue);
+    }
     console.log(`Timeout de silencio actualizado: ${clampedValue}ms`);
   };
 
@@ -523,7 +525,9 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
     };
 
     // Configurar callbacks
-    realTimeTranslationService.setCallbacks(handleSegmentUpdate, handleError);
+    if (realTimeTranslationServiceRef.current) {
+      realTimeTranslationServiceRef.current.setCallbacks(handleSegmentUpdate, handleError);
+    }
 
     return () => {
       // Cleanup si es necesario
