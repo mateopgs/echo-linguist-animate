@@ -55,6 +55,8 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
   private voiceSpeed: number = 1.1; // Velocidad por defecto
   private processedTexts: Set<string> = new Set(); // Set para controlar textos ya procesados
   private playbackQueue: Promise<void> = Promise.resolve(); // Cola para reproducción secuencial
+  private selectedInputDevice: string = "default";
+  private selectedOutputDevice: string = "default";
 
   constructor() {
     super();
@@ -88,6 +90,20 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
     this.voiceSpeed = speed;
     console.log(`Real-time Translation Service voice speed set to: ${speed}x`);
   }
+
+  public setAudioDevices(inputDeviceId: string, outputDeviceId: string) {
+    this.selectedInputDevice = inputDeviceId;
+    this.selectedOutputDevice = outputDeviceId;
+    console.log(`Real-time Translation Service audio devices set: input=${inputDeviceId}, output=${outputDeviceId}`);
+  }
+
+  private createAudioConfig(): sdk.AudioConfig {
+    if (this.selectedInputDevice === "default") {
+      return sdk.AudioConfig.fromDefaultMicrophoneInput();
+    } else {
+      return sdk.AudioConfig.fromMicrophoneInput(this.selectedInputDevice);
+    }
+  }
   
   public setSegmentDuration(durationMs: number) {
     this.segmentInterval = durationMs;
@@ -118,8 +134,6 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
       throw new Error("Translation service not configured with Azure credentials");
     }
 
-    // Reset interim word counter at session start
-    this.interimWordsProcessed = 0;
     if (this.processing) {
       console.warn("Session already in progress");
       return;
@@ -151,8 +165,8 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
         this.endSilenceTimeoutMs.toString()
       );
       
-      // Setup audio config for microphone
-      const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
+      // Setup audio config for selected microphone
+      const audioConfig = this.createAudioConfig();
       
       // Create translator with continuous recognition
       this.translationRecognizer = new sdk.TranslationRecognizer(
@@ -436,6 +450,16 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
       // Usar la velocidad de voz configurada
       sourceNode.playbackRate.value = this.voiceSpeed; 
       console.log(`Playback rate set to: ${this.voiceSpeed}x`);
+      
+      // Connect to the selected output device if supported
+      if (this.selectedOutputDevice !== "default" && this.audioContext.setSinkId) {
+        try {
+          await (this.audioContext as any).setSinkId(this.selectedOutputDevice);
+          console.log(`Audio output set to device: ${this.selectedOutputDevice}`);
+        } catch (error) {
+          console.warn("Failed to set audio output device:", error);
+        }
+      }
       
       sourceNode.connect(this.audioContext.destination);
       

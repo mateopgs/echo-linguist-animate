@@ -1,13 +1,14 @@
+
 import React from "react";
-import { useVoiceAssistant } from "../contexts/VoiceAssistantContext";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/tabs";
-import { Label } from "./ui/label";
+import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-import { Slider } from "./ui/slider";
-import { Switch } from "./ui/switch";
+import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
-import { Info } from "lucide-react";
+import { Switch } from "./ui/switch";
+import { Slider } from "./ui/slider";
+import { Separator } from "./ui/separator";
+import { useVoiceAssistant } from "../contexts/VoiceAssistantContext";
+import AudioDeviceSelector from "./AudioDeviceSelector";
 
 const ConfigForm: React.FC = () => {
   const {
@@ -19,6 +20,8 @@ const ConfigForm: React.FC = () => {
     setRealTimeMode,
     isCapturingWhileSpeaking,
     setCapturingWhileSpeaking,
+    segmentInterval,
+    setSegmentInterval,
     initialSilenceTimeout,
     setInitialSilenceTimeout,
     endSilenceTimeout,
@@ -26,289 +29,182 @@ const ConfigForm: React.FC = () => {
     availableVoices,
     selectedVoice,
     setSelectedVoice,
-    useAIEnhancement,
-    setUseAIEnhancement,
     voiceSpeed,
     setVoiceSpeed,
-    segmentInterval,
-    setSegmentInterval
+    useAIEnhancement,
+    setUseAIEnhancement,
+    selectedInputDevice,
+    selectedOutputDevice,
+    setSelectedInputDevice,
+    setSelectedOutputDevice,
   } = useVoiceAssistant();
 
+  const targetLanguageCode = selectedVoice?.locale?.split('-')[0] || 'en';
+  const voicesForLanguage = availableVoices.filter(voice => 
+    voice.locale?.startsWith(targetLanguageCode)
+  );
+
   return (
-    <Tabs defaultValue="basic" className="space-y-6">
-      <TabsList className="grid grid-cols-2 border-b mb-4">
-        <TabsTrigger value="basic">Básico</TabsTrigger>
-        <TabsTrigger value="advanced">Avanzado</TabsTrigger>
-      </TabsList>
-      <TabsContent value="basic">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="useAIEnhancement" className="text-base">
-                Mejora con IA
-              </Label>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Info size={16} className="text-slate-400" />
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="max-w-xs">
-                    Activa esta opción para utilizar IA para mejorar la calidad de las traducciones y mantener el contexto de la conversación.
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-slate-500">
-                Mejora de traducciones con OpenAI
-              </span>
-              <Switch
-                id="useAIEnhancement"
-                checked={useAIEnhancement}
-                onCheckedChange={setUseAIEnhancement}
-              />
-            </div>
+    <div className="space-y-6 max-h-[70vh] overflow-y-auto">
+      {/* Configuración de Azure */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-medium">Configuración de Azure</h3>
+        <div className="space-y-3">
+          <div>
+            <Label htmlFor="apiKey">API Key</Label>
+            <Input
+              id="apiKey"
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder="Tu API Key de Azure Speech"
+            />
           </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="realTimeMode" className="text-base">
-                Modo de traducción
-              </Label>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Info size={16} className="text-slate-400" />
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="max-w-xs">
-                    El modo en tiempo real proporciona traducción continua mientras hablas. El modo normal espera a que termines de hablar antes de traducir.
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-slate-500">
-                Traducción en tiempo real
-              </span>
-              <Switch
-                id="realTimeMode"
-                checked={isRealTimeMode}
-                onCheckedChange={setRealTimeMode}
-              />
-            </div>
+          <div>
+            <Label htmlFor="region">Región</Label>
+            <Input
+              id="region"
+              value={region}
+              onChange={(e) => setRegion(e.target.value)}
+              placeholder="eastus2"
+            />
           </div>
+        </div>
+      </div>
 
-          {isRealTimeMode && (
+      <Separator />
+
+      {/* Configuración de Dispositivos de Audio */}
+      <AudioDeviceSelector
+        selectedInputDevice={selectedInputDevice}
+        selectedOutputDevice={selectedOutputDevice}
+        onInputDeviceChange={setSelectedInputDevice}
+        onOutputDeviceChange={setSelectedOutputDevice}
+      />
+
+      <Separator />
+
+      {/* Configuración de Modo */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-medium">Modo de Traducción</h3>
+        <div className="flex items-center space-x-2">
+          <Switch
+            id="realTimeMode"
+            checked={isRealTimeMode}
+            onCheckedChange={setRealTimeMode}
+          />
+          <Label htmlFor="realTimeMode">Modo tiempo real</Label>
+        </div>
+        
+        {isRealTimeMode && (
+          <div className="space-y-3 pl-6">
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="capturingWhileSpeaking"
+                checked={isCapturingWhileSpeaking}
+                onCheckedChange={setCapturingWhileSpeaking}
+              />
+              <Label htmlFor="capturingWhileSpeaking">Captura continua</Label>
+            </div>
+            
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="capturingWhileSpeaking" className="text-base">
-                  Capturar mientras habla
-                </Label>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Info size={16} className="text-slate-400" />
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="max-w-xs">
-                      Permite seguir capturando audio mientras se reproduce la traducción, para una conversación más fluida.
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-500">
-                  Continuar escuchando durante la reproducción
-                </span>
-                <Switch
-                  id="capturingWhileSpeaking"
-                  checked={isCapturingWhileSpeaking}
-                  onCheckedChange={setCapturingWhileSpeaking}
-                />
-              </div>
+              <Label>Intervalo de segmento: {segmentInterval}ms</Label>
+              <Slider
+                value={[segmentInterval]}
+                onValueChange={(value) => setSegmentInterval(value[0])}
+                max={5000}
+                min={100}
+                step={100}
+                className="w-full"
+              />
             </div>
-          )}
+          </div>
+        )}
+      </div>
 
+      <Separator />
+
+      {/* Configuración de Voz */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-medium">Configuración de Voz</h3>
+        
+        {voicesForLanguage.length > 0 && (
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="voiceSelector" className="text-base">
-                Voz
-              </Label>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Info size={16} className="text-slate-400" />
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="max-w-xs">
-                    Selecciona la voz que se utilizará para la síntesis de voz.
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
+            <Label>Voz</Label>
             <Select
               value={selectedVoice?.id || ""}
-              onValueChange={(id) => {
-                const voice = availableVoices.find((v) => v.id === id);
+              onValueChange={(voiceId) => {
+                const voice = availableVoices.find(v => v.id === voiceId);
                 if (voice) setSelectedVoice(voice);
               }}
             >
-              <SelectTrigger id="voiceSelector">
+              <SelectTrigger>
                 <SelectValue placeholder="Seleccionar voz" />
               </SelectTrigger>
               <SelectContent>
-                {availableVoices.map((voice) => (
+                {voicesForLanguage.map((voice) => (
                   <SelectItem key={voice.id} value={voice.id}>
-                    {voice.name} ({voice.locale})
+                    {voice.name} ({voice.gender})
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
+        )}
+        
+        <div className="space-y-2">
+          <Label>Velocidad de voz: {voiceSpeed}x</Label>
+          <Slider
+            value={[voiceSpeed]}
+            onValueChange={(value) => setVoiceSpeed(value[0])}
+            max={2.0}
+            min={0.5}
+            step={0.1}
+            className="w-full"
+          />
         </div>
-      </TabsContent>
-      <TabsContent value="advanced">
-        <div className="space-y-4 border-t pt-4">
-          {isRealTimeMode && (
-            <>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="initialSilenceTimeout" className="text-sm">
-                    Tiempo de inicio del silencio
-                  </Label>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Info size={16} className="text-slate-400" />
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="max-w-xs">
-                        Tiempo en milisegundos antes de que el sistema determine que ha comenzado el silencio inicial.
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-                <div className="space-y-1">
-                  <Slider
-                    id="initialSilenceTimeout"
-                    defaultValue={[initialSilenceTimeout]}
-                    max={10000}
-                    min={1000}
-                    step={1000}
-                    onValueChange={(values) => setInitialSilenceTimeout(values[0])}
-                  />
-                  <div className="flex justify-between text-xs text-slate-500">
-                    <span>1s</span>
-                    <span>{(initialSilenceTimeout / 1000).toFixed(0)}s</span>
-                    <span>10s</span>
-                  </div>
-                </div>
-              </div>
+      </div>
 
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="endSilenceTimeout" className="text-sm">
-                    Tiempo de fin del silencio
-                  </Label>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Info size={16} className="text-slate-400" />
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="max-w-xs">
-                        Tiempo en milisegundos de silencio para determinar que se ha terminado de hablar.
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-                <div className="space-y-1">
-                  <Slider
-                    id="endSilenceTimeout"
-                    defaultValue={[endSilenceTimeout]}
-                    max={2000}
-                    min={100}
-                    step={100}
-                    onValueChange={(values) => setEndSilenceTimeout(values[0])}
-                  />
-                  <div className="flex justify-between text-xs text-slate-500">
-                    <span>100ms</span>
-                    <span>{endSilenceTimeout}ms</span>
-                    <span>2000ms</span>
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
+      <Separator />
 
-          {/* Voz Speed */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="voiceSpeed" className="text-base">
-                Velocidad de voz
-              </Label>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Info size={16} className="text-slate-400" />
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="max-w-xs">
-                    Ajusta la velocidad de reproducción de la voz sintetizada.
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-            <div className="space-y-1">
-              <Slider
-                id="voiceSpeed"
-                defaultValue={[voiceSpeed]}
-                max={2}
-                min={0.5}
-                step={0.1}
-                onValueChange={(values) => setVoiceSpeed(values[0])}
-              />
-              <div className="flex justify-between text-xs text-slate-500">
-                <span>0.5x</span>
-                <span>{voiceSpeed.toFixed(1)}x</span>
-                <span>2.0x</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Intervalo de segmentos */}
-          {isRealTimeMode && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="segmentInterval" className="text-base">
-                  Intervalo de segmentos
-                </Label>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Info size={16} className="text-slate-400" />
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="max-w-xs">
-                      Define cada cuántos milisegundos se procesa un segmento de audio para traducción.
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
-              <div className="space-y-1">
-                <Slider
-                  id="segmentInterval"
-                  defaultValue={[segmentInterval]}
-                  max={500}
-                  min={50}
-                  step={50}
-                  onValueChange={(values) => setSegmentInterval(values[0])}
-                />
-                <div className="flex justify-between text-xs text-slate-500">
-                  <span>50ms</span>
-                  <span>{segmentInterval}ms</span>
-                  <span>500ms</span>
-                </div>
-              </div>
-            </div>
-          )}
+      {/* Configuración Avanzada */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-medium">Configuración Avanzada</h3>
+        
+        <div className="flex items-center space-x-2">
+          <Switch
+            id="aiEnhancement"
+            checked={useAIEnhancement}
+            onCheckedChange={setUseAIEnhancement}
+          />
+          <Label htmlFor="aiEnhancement">Mejora con IA</Label>
         </div>
-      </TabsContent>
-    </Tabs>
+        
+        <div className="space-y-2">
+          <Label>Tiempo de silencio inicial: {initialSilenceTimeout}ms</Label>
+          <Slider
+            value={[initialSilenceTimeout]}
+            onValueChange={(value) => setInitialSilenceTimeout(value[0])}
+            max={10000}
+            min={1000}
+            step={500}
+            className="w-full"
+          />
+        </div>
+        
+        <div className="space-y-2">
+          <Label>Tiempo de silencio final: {endSilenceTimeout}ms</Label>
+          <Slider
+            value={[endSilenceTimeout]}
+            onValueChange={(value) => setEndSilenceTimeout(value[0])}
+            max={2000}
+            min={100}
+            step={100}
+            className="w-full"
+          />
+        </div>
+      </div>
+    </div>
   );
 };
 

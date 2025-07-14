@@ -43,6 +43,10 @@ type VoiceAssistantContextType = {
   setVoiceSpeed: (speed: number) => void;
   useAIEnhancement: boolean;
   setUseAIEnhancement: (enabled: boolean) => void;
+  selectedInputDevice: string;
+  selectedOutputDevice: string;
+  setSelectedInputDevice: (deviceId: string) => void;
+  setSelectedOutputDevice: (deviceId: string) => void;
 };
 
 const VoiceAssistantContext = createContext<VoiceAssistantContextType | null>(null);
@@ -80,6 +84,8 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
   const [selectedVoice, setSelectedVoice] = useState<VoiceOption | null>(null);
   const [voiceSpeed, setVoiceSpeed] = useState(0.8); // Valor por defecto para velocidad de la voz
   const [useAIEnhancement, setUseAIEnhancement] = useState(true); // Nuevo: activar mejora de OpenAI
+  const [selectedInputDevice, setSelectedInputDevice] = useState("default");
+  const [selectedOutputDevice, setSelectedOutputDevice] = useState("default");
   const { toast } = useToast();
 
   // Monitorear cambios importantes con logs
@@ -127,6 +133,13 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
     
     return () => clearInterval(cleanupInterval);
   }, []);
+
+  // Update audio devices in services when they change
+  useEffect(() => {
+    console.log(`Setting audio devices: input=${selectedInputDevice}, output=${selectedOutputDevice}`);
+    azureSpeechService.setAudioDevices(selectedInputDevice, selectedOutputDevice);
+    realTimeTranslationService.setAudioDevices(selectedInputDevice, selectedOutputDevice);
+  }, [selectedInputDevice, selectedOutputDevice]);
 
   // Configure services when API key or region changes
   useEffect(() => {
@@ -577,7 +590,11 @@ export const VoiceAssistantProvider: React.FC<{ children: React.ReactNode }> = (
         voiceSpeed,
         setVoiceSpeed,
         useAIEnhancement,
-        setUseAIEnhancement
+        setUseAIEnhancement,
+        selectedInputDevice,
+        selectedOutputDevice,
+        setSelectedInputDevice,
+        setSelectedOutputDevice,
       }}
     >
       {children}

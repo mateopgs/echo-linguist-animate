@@ -1,3 +1,4 @@
+
 import * as sdk from "microsoft-cognitiveservices-speech-sdk";
 import { AzureConfig, SupportedLanguages, VoiceOption } from "../types/voice-assistant";
 
@@ -58,6 +59,8 @@ class AzureSpeechService {
   private sourceNode: AudioBufferSourceNode | null = null;
   private currentVoice: VoiceOption | null = null;
   private voiceSpeed: number = 1.1; // Velocidad por defecto
+  private selectedInputDevice: string = "default";
+  private selectedOutputDevice: string = "default";
 
   public setConfig(config: AzureConfig) {
     this.config = config;
@@ -89,6 +92,20 @@ class AzureSpeechService {
   public setVoiceSpeed(speed: number) {
     this.voiceSpeed = speed;
     console.log("Voice speed set to:", speed);
+  }
+
+  public setAudioDevices(inputDeviceId: string, outputDeviceId: string) {
+    this.selectedInputDevice = inputDeviceId;
+    this.selectedOutputDevice = outputDeviceId;
+    console.log(`Audio devices set: input=${inputDeviceId}, output=${outputDeviceId}`);
+  }
+
+  private createAudioConfig(): sdk.AudioConfig {
+    if (this.selectedInputDevice === "default") {
+      return sdk.AudioConfig.fromDefaultMicrophoneInput();
+    } else {
+      return sdk.AudioConfig.fromMicrophoneInput(this.selectedInputDevice);
+    }
   }
 
   public async startRecognition(
@@ -129,8 +146,8 @@ class AzureSpeechService {
         "500"
       );
 
-      // Setup audio config for microphone
-      const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
+      // Setup audio config for selected microphone
+      const audioConfig = this.createAudioConfig();
       
       // Create translator
       const translator = new sdk.TranslationRecognizer(translationConfig, audioConfig);
@@ -231,6 +248,16 @@ class AzureSpeechService {
       // Usar la velocidad de reproducción configurada
       this.sourceNode.playbackRate.value = this.voiceSpeed;
       console.log(`Playback rate set to: ${this.voiceSpeed}x`);
+      
+      // Connect to the selected output device if supported
+      if (this.selectedOutputDevice !== "default" && this.audioContext.setSinkId) {
+        try {
+          await (this.audioContext as any).setSinkId(this.selectedOutputDevice);
+          console.log(`Audio output set to device: ${this.selectedOutputDevice}`);
+        } catch (error) {
+          console.warn("Failed to set audio output device:", error);
+        }
+      }
       
       this.sourceNode.connect(this.audioContext.destination);
       
