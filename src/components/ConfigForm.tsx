@@ -46,35 +46,9 @@ const ConfigForm: React.FC = () => {
 
   return (
     <div className="space-y-6 max-h-[70vh] overflow-y-auto">
-      {/* Configuración de Azure */}
-      <div className="space-y-4">
-        <h3 className="text-lg font-medium">Configuración de Azure</h3>
-        <div className="space-y-3">
-          <div>
-            <Label htmlFor="apiKey">API Key</Label>
-            <Input
-              id="apiKey"
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="Tu API Key de Azure Speech"
-            />
-          </div>
-          <div>
-            <Label htmlFor="region">Región</Label>
-            <Input
-              id="region"
-              value={region}
-              onChange={(e) => setRegion(e.target.value)}
-              placeholder="eastus2"
-            />
-          </div>
-        </div>
-      </div>
+      {/* Azure configuration is fixed in system; removed from form */}
 
-      <Separator />
-
-      {/* Configuración de Dispositivos de Audio */}
+      {/* Audio Devices Settings */}
       <AudioDeviceSelector
         selectedInputDevice={selectedInputDevice}
         selectedOutputDevice={selectedOutputDevice}
@@ -84,16 +58,16 @@ const ConfigForm: React.FC = () => {
 
       <Separator />
 
-      {/* Configuración de Modo */}
+      {/* Translation Mode */}
       <div className="space-y-4">
-        <h3 className="text-lg font-medium">Modo de Traducción</h3>
+        <h3 className="text-lg font-medium">Translation Mode</h3>
         <div className="flex items-center space-x-2">
           <Switch
             id="realTimeMode"
             checked={isRealTimeMode}
             onCheckedChange={setRealTimeMode}
           />
-          <Label htmlFor="realTimeMode">Modo tiempo real</Label>
+          <Label htmlFor="realTimeMode">Real-time Mode</Label>
         </div>
         
         {isRealTimeMode && (
@@ -104,11 +78,11 @@ const ConfigForm: React.FC = () => {
                 checked={isCapturingWhileSpeaking}
                 onCheckedChange={setCapturingWhileSpeaking}
               />
-              <Label htmlFor="capturingWhileSpeaking">Captura continua</Label>
+              <Label htmlFor="capturingWhileSpeaking">Continuous Capture</Label>
             </div>
             
             <div className="space-y-2">
-              <Label>Intervalo de segmento: {segmentInterval}ms</Label>
+            <Label>Segment interval: {segmentInterval}ms</Label>
               <Slider
                 value={[segmentInterval]}
                 onValueChange={(value) => setSegmentInterval(value[0])}
@@ -124,9 +98,9 @@ const ConfigForm: React.FC = () => {
 
       <Separator />
 
-      {/* Configuración de Voz */}
+      {/* Voice Settings */}
       <div className="space-y-4">
-        <h3 className="text-lg font-medium">Configuración de Voz</h3>
+        <h3 className="text-lg font-medium">Voice Settings</h3>
         
         {voicesForLanguage.length > 0 && (
           <div className="space-y-2">
@@ -139,7 +113,7 @@ const ConfigForm: React.FC = () => {
               }}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Seleccionar voz" />
+              <SelectValue placeholder="Select voice" />
               </SelectTrigger>
               <SelectContent>
                 {voicesForLanguage.map((voice) => (
@@ -153,7 +127,7 @@ const ConfigForm: React.FC = () => {
         )}
         
         <div className="space-y-2">
-          <Label>Velocidad de voz: {voiceSpeed}x</Label>
+          <Label>Voice speed: {voiceSpeed}x</Label>
           <Slider
             value={[voiceSpeed]}
             onValueChange={(value) => setVoiceSpeed(value[0])}
@@ -167,9 +141,9 @@ const ConfigForm: React.FC = () => {
 
       <Separator />
 
-      {/* Configuración Avanzada */}
+      {/* Advanced Settings */}
       <div className="space-y-4">
-        <h3 className="text-lg font-medium">Configuración Avanzada</h3>
+        <h3 className="text-lg font-medium">Advanced Settings</h3>
         
         <div className="flex items-center space-x-2">
           <Switch
@@ -177,11 +151,11 @@ const ConfigForm: React.FC = () => {
             checked={useAIEnhancement}
             onCheckedChange={setUseAIEnhancement}
           />
-          <Label htmlFor="aiEnhancement">Mejora con IA</Label>
+          <Label htmlFor="aiEnhancement">AI Enhancement</Label>
         </div>
         
         <div className="space-y-2">
-          <Label>Tiempo de silencio inicial: {initialSilenceTimeout}ms</Label>
+          <Label>Initial silence timeout: {initialSilenceTimeout}ms</Label>
           <Slider
             value={[initialSilenceTimeout]}
             onValueChange={(value) => setInitialSilenceTimeout(value[0])}
@@ -193,7 +167,7 @@ const ConfigForm: React.FC = () => {
         </div>
         
         <div className="space-y-2">
-          <Label>Tiempo de silencio final: {endSilenceTimeout}ms</Label>
+          <Label>End silence timeout: {endSilenceTimeout}ms</Label>
           <Slider
             value={[endSilenceTimeout]}
             onValueChange={(value) => setEndSilenceTimeout(value[0])}

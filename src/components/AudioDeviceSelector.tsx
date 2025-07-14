@@ -61,7 +61,7 @@ const AudioDeviceSelector: React.FC<AudioDeviceSelectorProps> = ({
       console.error('Error loading audio devices:', error);
       toast({
         title: "Error",
-        description: "No se pudieron cargar los dispositivos de audio. Asegúrate de dar permisos de micrófono.",
+        description: "Could not load audio devices. Make sure to grant microphone permissions.",
         variant: "destructive",
       });
     } finally {
@@ -76,7 +76,7 @@ const AudioDeviceSelector: React.FC<AudioDeviceSelectorProps> = ({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-medium">Dispositivos de Audio</h3>
+        <h3 className="text-lg font-medium">Audio Devices</h3>
         <Button
           variant="outline"
           size="sm"
@@ -84,23 +84,26 @@ const AudioDeviceSelector: React.FC<AudioDeviceSelectorProps> = ({
           disabled={isLoading}
         >
           <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-          Actualizar
+          Refresh
         </Button>
+      </div>
+      <div className="text-sm text-voiceAssistant-text/70">
+        To avoid audio feedback, use headphones for listening 🎧 and a separate microphone for speaking 🎤 (e.g., phone mic).
       </div>
 
       <div className="space-y-3">
-        {/* Selector de micrófono */}
+        {/* Microphone selector */}
         <div className="space-y-2">
           <label className="text-sm font-medium flex items-center">
             <Mic className="h-4 w-4 mr-2" />
-            Micrófono
+            Microphone
           </label>
           <Select value={selectedInputDevice} onValueChange={onInputDeviceChange}>
             <SelectTrigger>
-              <SelectValue placeholder="Seleccionar micrófono" />
+              <SelectValue placeholder="Select microphone" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="default">Micrófono por defecto</SelectItem>
+              <SelectItem value="default">Default microphone</SelectItem>
               {inputDevices.map((device) => (
                 <SelectItem key={device.deviceId} value={device.deviceId}>
                   {device.label}
@@ -110,18 +113,18 @@ const AudioDeviceSelector: React.FC<AudioDeviceSelectorProps> = ({
           </Select>
         </div>
 
-        {/* Selector de dispositivo de salida */}
+        {/* Output device selector */}
         <div className="space-y-2">
           <label className="text-sm font-medium flex items-center">
             <Speaker className="h-4 w-4 mr-2" />
-            Dispositivo de Salida
+            Output Device
           </label>
           <Select value={selectedOutputDevice} onValueChange={onOutputDeviceChange}>
             <SelectTrigger>
-              <SelectValue placeholder="Seleccionar dispositivo de salida" />
+              <SelectValue placeholder="Select output device" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="default">Altavoz por defecto</SelectItem>
+              <SelectItem value="default">Default speaker</SelectItem>
               {outputDevices.map((device) => (
                 <SelectItem key={device.deviceId} value={device.deviceId}>
                   {device.label}
@@ -134,8 +137,8 @@ const AudioDeviceSelector: React.FC<AudioDeviceSelectorProps> = ({
 
       {inputDevices.length === 0 && outputDevices.length === 0 && !isLoading && (
         <div className="text-sm text-muted-foreground text-center py-4">
-          <p>No se encontraron dispositivos de audio.</p>
-          <p>Asegúrate de dar permisos de micrófono y actualizar la lista.</p>
+          <p>No audio devices found.</p>
+          <p>Make sure to grant microphone permissions and refresh the list.</p>
         </div>
       )}
     </div>
