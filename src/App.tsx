@@ -1,11 +1,20 @@
 
 import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import './App.css';
-import VoiceAssistant from './components/VoiceAssistant';
+import Index from './pages/Index';
+import PhoneCall from './pages/PhoneCall';
+import NotFound from './pages/NotFound';
 
 const App: React.FC = () => {
   return (
-    <VoiceAssistant />
+    <Router>
+      <Routes>
+        <Route path="/" element={<Index />} />
+        <Route path="/phonecall" element={<PhoneCall />} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </Router>
   );
 };
 
