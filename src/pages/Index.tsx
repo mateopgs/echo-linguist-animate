@@ -12,28 +12,25 @@ const Index = () => {
         <div className="text-center mb-8">
           <img 
             src="/lovable-uploads/72da0a50-4942-409a-b30c-5d599427fa00.png" 
-            alt="Traduce AI Logo" 
+            alt="Translate AI Logo" 
             className="h-16 sm:h-20 md:h-24 mx-auto mb-4"
           />
           <h1 className="text-3xl sm:text-4xl font-bold text-voiceAssistant-text mb-2">
-            Traduce AI
+            Choose your translation mode
           </h1>
-          <p className="text-lg text-voiceAssistant-text/80">
-            Elige tu modo de traducción
-          </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto">
-          <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-3 text-voiceAssistant-text">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto justify-items-center">
+          <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300 w-full max-w-sm">
+              <CardHeader>
+              <CardTitle className="flex items-center justify-center gap-3 text-voiceAssistant-text">
                 <MessageSquare className="h-6 w-6 text-voiceAssistant-primary" />
-                Intérprete
+                Interpreter
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 flex flex-col items-center text-center">
               <p className="text-voiceAssistant-text/80">
-                Traducción en tiempo real por voz para conversaciones presenciales
+                Real-time voice translation for in-person conversations
               </p>
               <Link to="/interprete">
                 <Button 
@@ -41,22 +38,22 @@ const Index = () => {
                   size="lg"
                 >
                   <MessageSquare className="mr-2 h-4 w-4" />
-                  Usar Intérprete
+                  Use Interpreter
                 </Button>
               </Link>
             </CardContent>
           </Card>
 
-          <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-3 text-voiceAssistant-text">
+          <Card className="shadow-lg hover:shadow-xl transition-shadow duration-300 w-full max-w-sm">
+          <CardHeader>
+          <CardTitle className="flex items-center justify-center gap-3 text-voiceAssistant-text">
                 <Phone className="h-6 w-6 text-voiceAssistant-primary" />
-                Llamada Telefónica
+                Phone Call
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+          <CardContent className="space-y-4 flex flex-col items-center text-center">
               <p className="text-voiceAssistant-text/80">
-                Realiza llamadas con traducción automática en tiempo real
+                Make calls with real-time automatic translation
               </p>
               <Link to="/phonecall">
                 <Button 
@@ -64,7 +61,7 @@ const Index = () => {
                   size="lg"
                 >
                   <Phone className="mr-2 h-4 w-4" />
-                  Hacer Llamada
+                  Make Call
                 </Button>
               </Link>
             </CardContent>
