@@ -1,3 +1,4 @@
+
 import * as sdk from "microsoft-cognitiveservices-speech-sdk";
 import { AzureConfig, VoiceOption } from "../types/voice-assistant";
 import { EventEmitter } from "../utils/eventEmitter";
@@ -452,10 +453,16 @@ export class RealTimeTranslationService extends EventEmitter<TranslationEvents> 
       console.log(`Playback rate set to: ${this.voiceSpeed}x`);
       
       // Connect to the selected output device if supported
-      if (this.selectedOutputDevice !== "default" && this.audioContext.setSinkId) {
+      if (this.selectedOutputDevice !== "default") {
         try {
-          await (this.audioContext as any).setSinkId(this.selectedOutputDevice);
-          console.log(`Audio output set to device: ${this.selectedOutputDevice}`);
+          // Type-safe check for setSinkId support
+          const audioContextWithSinkId = this.audioContext as AudioContext & { setSinkId?: (deviceId: string) => Promise<void> };
+          if (audioContextWithSinkId.setSinkId) {
+            await audioContextWithSinkId.setSinkId(this.selectedOutputDevice);
+            console.log(`Audio output set to device: ${this.selectedOutputDevice}`);
+          } else {
+            console.warn("setSinkId not supported in this browser");
+          }
         } catch (error) {
           console.warn("Failed to set audio output device:", error);
         }
