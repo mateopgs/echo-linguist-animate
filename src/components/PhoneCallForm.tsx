@@ -73,33 +73,75 @@ const PhoneCallForm: React.FC = () => {
       return;
     }
 
+    // Validate phone number format
+    if (!config.from_number.startsWith('+') || !config.to_number.startsWith('+')) {
+      toast({
+        title: "Error",
+        description: "Phone numbers must start with + (international format)",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setLoading(true);
     
     try {
+      console.log("Initiating call with config:", config);
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      
       const response = await fetch('https://pgs-call-translate.azurewebsites.net/initiate-call', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config)
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(config),
+        signal: controller.signal
       });
 
+      clearTimeout(timeoutId);
+
+      console.log("Response status:", response.status);
+      console.log("Response headers:", response.headers);
+
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || error.message || 'Unknown error');
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        try {
+          const error = await response.json();
+          errorMessage = error.error || error.message || errorMessage;
+        } catch (e) {
+          console.log("Could not parse error response as JSON");
+        }
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
+      console.log("Call result:", result);
       
       toast({
         title: "Call initiated successfully!",
         description: `Session ID: ${result.session_id}`,
       });
       
-      console.log("Call started with session:", result.session_id);
-      
     } catch (error) {
+      console.error("Call initiation error:", error);
+      
+      let errorMessage = "Unknown error";
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          errorMessage = "Request timeout - the service may be unavailable";
+        } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+          errorMessage = "Network error - check your internet connection or the service may be down";
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
       toast({
         title: "Call failed",
-        description: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        description: `Error: ${errorMessage}`,
         variant: "destructive"
       });
     } finally {
