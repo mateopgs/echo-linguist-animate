@@ -1,7 +1,8 @@
 import React, { useEffect } from "react";
+import { Link } from "react-router-dom";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
-import { Mic, MicOff, Volume, Settings, Sparkles } from "lucide-react";
+import { Mic, MicOff, Volume, Settings, Sparkles, ArrowLeft } from "lucide-react";
 import { useVoiceAssistant } from "../contexts/VoiceAssistantContext";
 import { AssistantState } from "../types/voice-assistant";
 import AudioVisualizer from "./AudioVisualizer";
@@ -34,7 +35,9 @@ const VoiceAssistant: React.FC = () => {
 
   const handleToggleListen = () => {
     if (state === AssistantState.LISTENING) {
-      stopListening();
+            <div className="absolute left-1/2 -translate-x-1/2">
+              <span className="font-semibold text-white text-sm sm:text-base">Interpreter</span>
+            </div>
     } else if (state === AssistantState.IDLE) {
       startListening();
     }
@@ -69,8 +72,13 @@ const VoiceAssistant: React.FC = () => {
         style={{ background: 'linear-gradient(to right, white 0%, white 15%, #7c3aed 100%)' }}
         className="text-white rounded-t-lg px-3 py-2 sm:px-4 sm:py-3 shadow-sm"
       >
-        <div className="flex items-center justify-between w-full">
+        <div className="relative flex items-center w-full" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center">
+            <Link to="/">
+              <Button variant="ghost" className="text-white h-8 w-8 p-0 sm:h-9 sm:w-9 sm:p-1 mr-2">
+                <ArrowLeft size={20} />
+              </Button>
+            </Link>
             <img 
               src="/lovable-uploads/72da0a50-4942-409a-b30c-5d599427fa00.png" 
               alt="Traduce AI Logo" 
@@ -83,22 +91,27 @@ const VoiceAssistant: React.FC = () => {
               </span>
             )}
           </div>
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button variant="ghost" className="text-white h-8 w-8 p-0 sm:h-9 sm:w-9 sm:p-1">
-                <Settings size={20} className="sm:size-24" />
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="w-full max-w-sm md:max-w-lg">
-              <ConfigDialogHeader>
-                <ConfigDialogTitle>Settings</ConfigDialogTitle>
-              </ConfigDialogHeader>
-              <ConfigForm />
-              <DialogClose asChild>
-                <Button className="mt-4 w-full">Close</Button>
-              </DialogClose>
-            </DialogContent>
-          </Dialog>
+          <div className="absolute left-1/2 -translate-x-1/2">
+            <span className="font-semibold text-white text-sm sm:text-base">AI Interpreter</span>
+          </div>
+          <div className="ml-auto">
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="ghost" className="text-white h-8 w-8 p-0 sm:h-9 sm:w-9 sm:p-1">
+                  <Settings size={20} className="sm:size-24" />
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="w-full max-w-sm md:max-w-lg">
+                <ConfigDialogHeader>
+                  <ConfigDialogTitle>Settings</ConfigDialogTitle>
+                </ConfigDialogHeader>
+                <ConfigForm />
+                <DialogClose asChild>
+                  <Button className="mt-4 w-full">Close</Button>
+                </DialogClose>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="p-3 sm:p-4 md:p-6 space-y-3 md:space-y-6">
